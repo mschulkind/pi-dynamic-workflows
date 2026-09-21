@@ -22,15 +22,17 @@ export function tokenFigures(usage, scalarTokens) {
 export function aggregateAgentUsage(agents) {
     let fresh = 0;
     let cacheRead = 0;
+    let output = 0;
     let estimated = false;
     for (const a of agents) {
         const f = tokenFigures(a.tokenUsage, a.tokens);
         fresh += f.fresh;
         cacheRead += f.cacheRead;
+        output += a.tokenUsage?.output ?? 0;
         if (f.estimated)
             estimated = true;
     }
-    return { fresh, cacheRead, estimated };
+    return { fresh, cacheRead, output, estimated };
 }
 /**
  * Format a token count for a display surface: "12.4K tok" on its own, or

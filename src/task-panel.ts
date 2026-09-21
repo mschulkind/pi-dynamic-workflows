@@ -1731,8 +1731,16 @@ export function renderPanelDetailed(
     // fresh+cacheRead sum the header displays. A flat rate now indicates a real
     // lull rather than merely waiting for a long-running agent to return. Paused
     // runs do not accrue tokens, so their rate is suppressed.
-    const runUsage = snap ? aggregateAgentUsage(agents) : summary.usage;
-    sampleTokens(r.runId, runUsage.fresh + runUsage.cacheRead, now, runUsage.estimated);
+    const liveUsage = snap ? aggregateAgentUsage(agents) : undefined;
+    const runUsage = liveUsage ?? summary.usage;
+    // The rate is a DECODE rate, so it samples OUTPUT tokens only. It used to sample
+    // fresh+cacheRead -- the number the header shows -- which was wrong twice over:
+    // cache reads are neither generated nor slow (they arrive in bulk), and `fresh`
+    // folds in input, which is prefilled. A run reading 34M cached tokens could
+    // report tens of thousands of tok/s while the model decoded a few dozen.
+    // Output-per-second is also the one figure worth comparing between providers,
+    // which is what a rate in this panel is actually for.
+    if (liveUsage) sampleTokens(r.runId, liveUsage.output, now, liveUsage.estimated);
     const rate = r.status === "running" ? tokensPerSecond(r.runId) : 0;
     const meta = [
       `${done}/${snap ? agents.length : summary.total} agents`,
@@ -1740,7 +1748,7 @@ export function renderPanelDetailed(
       fmtTokenSegment(runUsage, fmtTokensShort),
       // (cost is only known once the run finalizes its usage.)
       usage?.cost ? fmtCost(usage.cost) : "",
-      rate > 0 ? `${tokenRateIsEstimated(r.runId) ? "~" : ""}${Math.round(rate)} tok/s` : "",
+      rate > 0 ? `${tokenRateIsEstimated(r.runId) ? "~" : ""}${Math.round(rate)} tok/s out` : "",
     ]
       .filter(Boolean)
       .join(" · ");

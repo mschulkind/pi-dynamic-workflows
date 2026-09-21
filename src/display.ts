@@ -101,18 +101,26 @@ export function tokenFigures(
 export function aggregateAgentUsage(agents: ReadonlyArray<Pick<WorkflowAgentSnapshot, "tokens" | "tokenUsage">>): {
   fresh: number;
   cacheRead: number;
+  /**
+   * Output tokens: the part a provider actually DECODES, and so the only honest
+   * numerator for a token rate. `fresh` cannot serve -- it folds in input and
+   * cache writes, which are prefilled rather than generated.
+   */
+  output: number;
   estimated: boolean;
 } {
   let fresh = 0;
   let cacheRead = 0;
+  let output = 0;
   let estimated = false;
   for (const a of agents) {
     const f = tokenFigures(a.tokenUsage, a.tokens);
     fresh += f.fresh;
     cacheRead += f.cacheRead;
+    output += a.tokenUsage?.output ?? 0;
     if (f.estimated) estimated = true;
   }
-  return { fresh, cacheRead, estimated };
+  return { fresh, cacheRead, output, estimated };
 }
 
 /**

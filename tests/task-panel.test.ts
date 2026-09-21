@@ -3242,9 +3242,9 @@ describe("token rate", () => {
 describe("renderPanelDetailed", () => {
   const theme = { fg: (_c: string, t: string) => t, bold: (t: string) => t };
 
-  // `blueTokens` drives the first agent's live token count; the run aggregate and
-  // token/s are summed from per-agent tokens (the run-level tokenUsage aggregate is
-  // not live — see renderPanelDetailed), so growing blueTokens grows the rate.
+  // `blueTokens` drives the first agent's live token count; the run aggregate is
+  // summed from per-agent tokens, while the token/s rate samples per-agent OUTPUT
+  // tokens -- the part a provider decodes -- so growing blueTokens grows both.
   function detailedManager(blueTokens: number, status = "running", estimated = false) {
     const snapshot = {
       name: "auth_audit",
@@ -3258,19 +3258,15 @@ describe("renderPanelDetailed", () => {
           status: "done",
           phase: "Scan",
           tokens: blueTokens,
-          ...(estimated
-            ? {
-                tokenUsage: {
-                  input: 0,
-                  output: blueTokens,
-                  total: blueTokens,
-                  cacheRead: 0,
-                  cacheWrite: 0,
-                  cost: 0,
-                  estimated: true,
-                },
-              }
-            : {}),
+          tokenUsage: {
+            input: 0,
+            output: blueTokens,
+            total: blueTokens,
+            cacheRead: 0,
+            cacheWrite: 0,
+            cost: 0,
+            ...(estimated ? { estimated: true } : {}),
+          },
           model: "anthropic/claude-haiku-4-5",
         },
         { id: 2, label: "audit_auth", status: "running", phase: "Scan", tokens: 1800 },

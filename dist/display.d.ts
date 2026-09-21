@@ -90,6 +90,12 @@ export declare function tokenFigures(usage: Partial<AgentUsage> | undefined, sca
 export declare function aggregateAgentUsage(agents: ReadonlyArray<Pick<WorkflowAgentSnapshot, "tokens" | "tokenUsage">>): {
     fresh: number;
     cacheRead: number;
+    /**
+     * Output tokens: the part a provider actually DECODES, and so the only honest
+     * numerator for a token rate. `fresh` cannot serve -- it folds in input and
+     * cache writes, which are prefilled rather than generated.
+     */
+    output: number;
     estimated: boolean;
 };
 /**
