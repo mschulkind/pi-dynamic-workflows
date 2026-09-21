@@ -1,6 +1,12 @@
 node_modules/
 node_modules
-dist/
+# dist/ is deliberately NOT ignored in this fork, unlike upstream. Upstream keeps
+# it untracked and ships it only inside the npm tarball (built by prepublishOnly),
+# but we consume this fork through a `git:` spec and extensions/workflow.ts imports
+# ../dist/pi-extension.js -- a clone with no dist does not load at all, and there
+# is no prepare hook to build one on install. Rebuild before pushing:
+#   just forks_build
+# dist/
 .pi/
 .env
 .DS_Store
