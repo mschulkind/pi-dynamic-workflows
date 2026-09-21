@@ -11,6 +11,7 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { AgentSession, type ExtensionAPI, type ExtensionUIContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { toPiUsage, type PiUsage } from "./agent-usage.js";
 import {
   aggregateAgentUsage,
   fmtCost,
@@ -200,6 +201,12 @@ interface SessionDeliveryEndpoint {
   generation: number;
   /** Owning manager used to recompute complete-text and clear pending markers. */
   manager?: WorkflowManager;
+  /**
+   * Records a completed run's spend into the session so Pi's cost accounting
+   * includes it. Absent when the host exposes no writable session manager, in
+   * which case delivery proceeds and only the accounting is skipped.
+   */
+  appendUsage?: (kind: string, provider: string, model: string, usage: PiUsage, note?: string) => unknown;
 }
 
 /** Process-wide: one live endpoint per pi session id. */
@@ -1083,6 +1090,12 @@ export function bindSessionDelivery(
         display: boolean,
         details?: unknown,
       ) => string;
+      /**
+       * Record non-conversational usage into the session. A real SessionManager
+       * method that Pi's extension-facing type does not list yet, reached through
+       * the same duck-typed handle as the two above.
+       */
+      appendUsage?: (kind: string, provider: string, model: string, usage: PiUsage, note?: string) => unknown;
     };
   } = {},
 ): void {
@@ -1120,6 +1133,7 @@ export function bindSessionDelivery(
   const endpoint: SessionDeliveryEndpoint = {
     sessionId,
     send: stolen,
+    appendUsage: opts.sessionManager?.appendUsage?.bind(opts.sessionManager),
     loadSettings: opts.loadSettings ?? prev?.loadSettings,
     suspended: false,
     generation: (prev?.generation ?? 0) + 1,
@@ -1289,6 +1303,44 @@ export function resumeResultDelivery(manager: WorkflowManager): void {
 // to the instance that emitted it.
 let turnEndDeliveryManagers = new WeakMap<ExtensionAPI, { manager: WorkflowManager }>();
 
+/**
+ * Record a completed background run's spend into the session, so Pi's session
+ * cost includes workflow subagents.
+ *
+ * WHY THIS IS NEEDED. Pi's footer sums assistant messages, `usage` entries and
+ * toolResult usage. A background run produces none of those: its completion is a
+ * delivered *custom message*, which Pi does not count. So without this the
+ * panel's $ and the footer's $ disagree by exactly the workflow's spend. A
+ * foreground run needs none of this -- it returns its result inline and reports
+ * through `usage` on the tool result (see workflow-tool.ts).
+ *
+ * PER AGENT, NOT PER RUN. Each agent carries its own model, and Pi breaks usage
+ * down per model, so one aggregate entry would misattribute every agent that did
+ * not run on the run's first model. Provider and id are split on the first slash
+ * of `provider/id`; an agent whose model is unknown is recorded against empty
+ * strings rather than guessed.
+ *
+ * NEVER THROWS. This is bookkeeping: a failure here must not break delivery, and
+ * a host with no writable session manager simply skips it.
+ */
+function recordRunUsage(endpoint: SessionDeliveryEndpoint, run: ManagedRun): void {
+  const appendUsage = endpoint.appendUsage;
+  if (!appendUsage) return;
+  try {
+    for (const agent of run.snapshot.agents) {
+      const usage = toPiUsage(agent.tokenUsage);
+      if (!usage) continue;
+      const model = agent.model ?? "";
+      const slash = model.indexOf("/");
+      const provider = slash === -1 ? "" : model.slice(0, slash);
+      const id = slash === -1 ? model : model.slice(slash + 1);
+      appendUsage("workflow", provider, id, usage, `workflow ${run.snapshot.name}`);
+    }
+  } catch {
+    // Bookkeeping must never break delivery.
+  }
+}
+
 export function installResultDelivery(
   pi: ExtensionAPI,
   manager: WorkflowManager,
@@ -1402,6 +1454,7 @@ export function installResultDelivery(
       }),
     });
     routeBackgroundDelivery(manager, run, { kind: "complete" }, content);
+    if (endpoint) recordRunUsage(endpoint, run);
   });
 
   manager.on("error", ({ runId, error }: { runId: string; error?: { message?: string } }) => {

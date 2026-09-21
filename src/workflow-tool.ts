@@ -1,6 +1,7 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { toPiUsage } from "./agent-usage.js";
 import { BUILTIN_WORKFLOW_NAMES, resolveWorkflowInvocation } from "./builtin-workflows.js";
 import { MAX_AGENTS_PER_RUN } from "./config.js";
 import {
@@ -376,6 +377,12 @@ export function createWorkflowTool(options: WorkflowToolOptions = {}): ToolDefin
       const formattedResult =
         result.result !== undefined ? `\n\`\`\`json\n${JSON.stringify(result.result, null, 2)}\n\`\`\`` : "";
 
+      // Report the run's spend as tool-result usage so Pi's session cost counts
+      // it. A foreground run returns its result inline, and Pi sums toolResult
+      // usage into the footer; without this the workflow's spend is visible only
+      // in the panel's own total. See recordRunUsage in task-panel.ts for the
+      // background half, which has no tool result to ride on.
+      const piUsage = toPiUsage(result.tokenUsage);
       return {
         content: [
           {
@@ -393,6 +400,7 @@ export function createWorkflowTool(options: WorkflowToolOptions = {}): ToolDefin
           tokenUsage: result.tokenUsage,
           runId: result.runId,
         },
+        ...(piUsage ? { usage: piUsage } : {}),
       };
     },
     renderCall(_args, theme) {

@@ -137,3 +137,74 @@ export function agentUsageEquals(left: AgentUsage, right: AgentUsage): boolean {
     !left.estimated === !right.estimated
   );
 }
+
+/**
+ * Pi's Usage shape, spelled structurally rather than imported.
+ *
+ * `@earendil-works/pi-ai` is not a dependency of this package, and only these
+ * fields are read, so a structural type keeps the dependency list honest. Pi
+ * requires `totalTokens` and a nested `cost` object.
+ */
+export interface PiUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+}
+
+/**
+ * The loosest shape `toPiUsage` accepts.
+ *
+ * Deliberately not `AgentUsage`: the same figures arrive in two forms, and one of
+ * them is looser than the other. `AgentUsage` (agent-usage.ts) always carries all
+ * six fields, while a snapshot's `tokenUsage` (display.ts WorkflowSnapshot)
+ * marks cacheRead/cacheWrite `estimated` and optional. Both are mapped here, so
+ * the parameter is the union of what they can be rather than the stricter one.
+ */
+export interface UsageLike {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  total?: number;
+  cost?: number;
+}
+
+/**
+ * Map accumulated usage to Pi's Usage, or undefined when there is nothing to
+ * report.
+ *
+ * The four cost sub-rates are zeroed and only the aggregate `total` is carried,
+ * because that is all the provider reports: this mirrors what `pi-subagents`
+ * returns from its own tool results (`toAgentToolUsage`), so a workflow's spend
+ * is shaped exactly like a subagent's and lands in the same footer bucket.
+ *
+ * Returns undefined for a zero-spend run so callers can omit the field entirely
+ * rather than record a meaningless zero entry.
+ */
+export function toPiUsage(usage: UsageLike | undefined): PiUsage | undefined {
+  if (!usage) return undefined;
+  const input = usage.input ?? 0;
+  const output = usage.output ?? 0;
+  const cacheRead = usage.cacheRead ?? 0;
+  const cacheWrite = usage.cacheWrite ?? 0;
+  const total = usage.total ?? input + output + cacheRead + cacheWrite;
+  const cost = usage.cost ?? 0;
+  if (total === 0 && cost === 0) return undefined;
+  return {
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    totalTokens: total,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: cost },
+  };
+}
