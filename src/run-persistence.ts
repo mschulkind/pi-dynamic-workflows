@@ -306,6 +306,16 @@ export const VALID_PERSISTED_AGENT_STATUSES: ReadonlySet<PersistedAgentState["st
   PERSISTED_AGENT_STATUSES,
 );
 
+/**
+ * Error codes that mean the run stopped for capacity, not because a peer
+ * produced a bad result. These get their own skip reason so a settled sibling
+ * does not read as a copy of the run-level failure.
+ */
+const CAPACITY_ERROR_CODES: ReadonlySet<WorkflowErrorCode> = new Set([
+  WorkflowErrorCode.TOKEN_BUDGET_EXHAUSTED,
+  WorkflowErrorCode.AGENT_LIMIT_EXCEEDED,
+]);
+
 /** Cause stamped onto leftover in-flight agents when a run reaches a terminal status. */
 export function terminalRunInterruptCause(
   status: RunStatus,
@@ -315,9 +325,18 @@ export function terminalRunInterruptCause(
     return { error: "aborted", errorCode: error?.code ?? WorkflowErrorCode.WORKFLOW_ABORTED };
   }
   if (status === "failed") {
+    // Never reuse the run's failure text as the skipped agent's own error: that
+    // text belongs to the SIBLING that failed, and stamping it on an unrelated
+    // skipped agent made "skipped because a sibling failed" and "skipped by
+    // budget/cap" read identically — as though the skipped agent failed itself.
+    // Classify from the run-level code so the two reasons stay distinguishable.
+    const code = error?.code;
     return {
-      error: error?.message ?? "run failed",
-      errorCode: error?.code ?? WorkflowErrorCode.UNKNOWN,
+      error:
+        code !== undefined && CAPACITY_ERROR_CODES.has(code)
+          ? `skipped: the run stopped on ${code} before this agent finished`
+          : "skipped: a sibling agent failed and the run stopped before this agent finished",
+      errorCode: code ?? WorkflowErrorCode.UNKNOWN,
     };
   }
   return { error: "run completed" };

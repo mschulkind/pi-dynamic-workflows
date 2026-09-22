@@ -23,6 +23,7 @@ import {
   type PersistedRunState,
   settleInterruptedPersistedAgents,
   settleNonTerminalPersistedAgents,
+  terminalRunInterruptCause,
 } from "../src/run-persistence.js";
 import { WorkflowManager } from "../src/workflow-manager.js";
 import { workflowProjectPaths } from "../src/workflow-paths.js";
@@ -447,6 +448,44 @@ test("settleInterruptedPersistedAgents skips leftover agents regardless of run s
   assert.equal(settled[0]?.status, "skipped");
   assert.equal(settled[0]?.error, "interrupted");
   assert.equal(settled[0]?.endedAt, "2024-01-01T00:00:10.000Z");
+});
+
+test("terminalRunInterruptCause distinguishes a sibling failure from budget/cap exhaustion", () => {
+  // The run's own failure text belongs to the sibling that failed. Stamping it
+  // on an abandoned sibling made the two skip reasons read identically (and look
+  // like the skipped agent's own failure).
+  const sibling = terminalRunInterruptCause("failed", {
+    message: "Subagent did not produce valid structured_output after repair attempts",
+    code: WorkflowErrorCode.SCHEMA_NONCOMPLIANCE,
+  });
+  assert.match(sibling.error, /sibling agent failed/);
+  assert.doesNotMatch(sibling.error, /structured_output/);
+  assert.equal(sibling.errorCode, WorkflowErrorCode.SCHEMA_NONCOMPLIANCE);
+
+  const budget = terminalRunInterruptCause("failed", {
+    message: "workflow token budget exhausted",
+    code: WorkflowErrorCode.TOKEN_BUDGET_EXHAUSTED,
+  });
+  assert.match(budget.error, /stopped on TOKEN_BUDGET_EXHAUSTED/);
+  assert.notEqual(budget.error, sibling.error);
+  assert.equal(budget.errorCode, WorkflowErrorCode.TOKEN_BUDGET_EXHAUSTED);
+
+  const cap = terminalRunInterruptCause("failed", {
+    message: "Agent limit exceeded (10/10).",
+    code: WorkflowErrorCode.AGENT_LIMIT_EXCEEDED,
+  });
+  assert.match(cap.error, /stopped on AGENT_LIMIT_EXCEEDED/);
+  assert.equal(cap.errorCode, WorkflowErrorCode.AGENT_LIMIT_EXCEEDED);
+});
+
+test("terminalRunInterruptCause keeps abort and completed runs generic", () => {
+  const aborted = terminalRunInterruptCause("aborted", {
+    message: "workflow aborted",
+    code: WorkflowErrorCode.WORKFLOW_ABORTED,
+  });
+  assert.equal(aborted.error, "aborted");
+  assert.equal(aborted.errorCode, WorkflowErrorCode.WORKFLOW_ABORTED);
+  assert.equal(terminalRunInterruptCause("completed", undefined).error, "run completed");
 });
 
 test("generateRunId returns a string with timestamp and random parts", () => {

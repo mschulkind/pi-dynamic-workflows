@@ -1232,7 +1232,12 @@ return { xs, after }`;
     }
 
     const resumed = manager.getPersistence().load(runId);
-    const aAgent = resumed?.agents.find((ag) => ag.label === "a");
+    // Two 'a' rows exist: the pre-pause ghost the resume seeded (now settled to
+    // skipped with the run-level skip reason) and the live post-resume attempt.
+    // This test is about the LATTER — the live attempt is the one whose timeout
+    // proves agentTimeoutMs survived resume, so select it explicitly rather than
+    // relying on row order.
+    const aAgent = resumed?.agents.filter((ag) => ag.label === "a").at(-1);
     assert.match(
       aAgent?.error ?? "",
       /timed out after 30ms/,
@@ -2749,7 +2754,12 @@ return xs`;
     const hang = persisted?.agents.find((a) => a.label === "hang");
     assert.equal(failer?.status, "error");
     assert.equal(hang?.status, "skipped", "run-fatal abort must not leave siblings running on disk");
-    assert.equal(hang?.error, "boom", "leftover agents carry the run's failure cause");
+    assert.match(
+      hang?.error ?? "",
+      /sibling agent failed/,
+      "a skipped sibling must state it was abandoned by the run, not inherit the failing agent's text",
+    );
+    assert.doesNotMatch(hang?.error ?? "", /boom/);
     assert.equal(hang?.errorCode, WorkflowErrorCode.AGENT_EXECUTION_ERROR);
     assert.ok(hang?.endedAt);
     assert.ok(persisted?.completedAt);
