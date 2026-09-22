@@ -137,17 +137,35 @@ export interface StructuredSession {
 }
 
 /**
+ * Render the payload a schema failure is about for a one-line error: collapse
+ * whitespace and cap at ~200 chars, so a 100k-token assistant message can't bury
+ * the rest of the message. Empty output is named explicitly (the common case
+ * where the model answered in prose or emitted nothing) rather than showing "".
+ */
+export function describeOffendingPayload(text: string, max = 200): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (!compact) return "(no assistant text)";
+  return compact.length > max ? `${compact.slice(0, max)}…` : compact;
+}
+
+/**
  * Resolve a schema agent's result. If the tool was called, return the captured
  * value. Otherwise re-prompt up to maxSchemaRetries (tools restricted to
  * structured_output), then try strict schema-validated prose extraction, else
  * throw SCHEMA_NONCOMPLIANCE (non-recoverable — surfaced, never a silent null).
  * Module-level with an injected `lastText` so it is unit-testable.
+ *
+ * The final error names the model that produced the payload and whether the run's
+ * model changed underneath it, plus the offending payload itself. A bare
+ * "did not produce valid structured_output" gave a 2026-09-21 long run nothing to
+ * reconstruct from but timestamps and settings.json; these three facts are what
+ * make the failure legible on its own.
  */
 export async function resolveStructuredOutput<T>(
   session: StructuredSession,
   capture: StructuredOutputCapture<T>,
   schema: TSchema,
-  options: { maxSchemaRetries?: number; signal?: AbortSignal; label?: string },
+  options: { maxSchemaRetries?: number; signal?: AbortSignal; label?: string; model?: string; modelChanged?: boolean },
   lastText: (messages: unknown[]) => string,
 ): Promise<T> {
   if (capture.called) return capture.value as T;
@@ -180,10 +198,17 @@ export async function resolveStructuredOutput<T>(
   // (recoverable) cause instead of the misleading non-recoverable SCHEMA_NONCOMPLIANCE.
   throwIfProviderLimit(session.messages, options.label);
 
+  const payload = describeOffendingPayload(lastText(session.messages));
+  const modelNote = options.model ?? "unknown";
+  const changeNote = options.modelChanged ? " (the run's model changed mid-run)" : "";
   throw new WorkflowError(
-    "Subagent did not produce valid structured_output after repair attempts",
+    `Subagent did not produce valid structured_output after repair attempts — model: ${modelNote}${changeNote}; offending payload: ${payload}`,
     WorkflowErrorCode.SCHEMA_NONCOMPLIANCE,
-    { recoverable: false, agentLabel: options.label },
+    {
+      recoverable: false,
+      agentLabel: options.label,
+      details: { payload, model: options.model, modelChanged: options.modelChanged },
+    },
   );
 }
 
@@ -804,6 +829,19 @@ export class WorkflowAgent {
    */
   private warnedImplicitRouteUnavailable = false;
   /**
+   * The concrete model the run's default route first bound: the FIRST untagged
+   * agent (no explicit model/tier/phase, so it inherits the run default) records
+   * its bound spec here. One WorkflowAgent instance runs one workflow invocation
+   * (see the class lifetime note), so this is a run-scoped snapshot, not a
+   * per-agent value. It backs two diagnostics: whether a later default-routed
+   * agent was silently re-routed to a different model (runModelChanged), and the
+   * "no longer enabled" fail-fast that replaces an unrelated schema error four
+   * turns later.
+   */
+  private runDefaultModel?: string;
+  /** Set once a later default-routed agent bound a model different from runDefaultModel. */
+  private runModelChanged = false;
+  /**
    * Named conversations live for this WorkflowAgent instance. Production creates
    * one instance per workflow invocation; embedders that inject and reuse an
    * agent are responsible for choosing the longer thread lifetime deliberately.
@@ -828,6 +866,52 @@ export class WorkflowAgent {
     this.preSpawnModel = options.preSpawnModel;
     this.sharedRegistry = options.modelRegistry;
     this.parentSessionFile = options.parentSessionFile;
+  }
+
+  /**
+   * Record the concrete model an agent bound, and report whether a default-routed
+   * agent diverged from the run's snapshot. `trackForRun` is true only for a
+   * default-routed agent whose model actually came from this agent's registry
+   * layer — an embedder-injected `session.model` may belong to a different
+   * registry, so it must not seed a "run-start model" this agent cannot vouch for.
+   * Explicit/tier/phase pins are deliberate per-agent choices and never update
+   * the snapshot. Returns nothing; the run-level flag is exposed for diagnostics.
+   */
+  private noteRunModel(spec: string | undefined, trackForRun: boolean): void {
+    if (!spec || !trackForRun) return;
+    if (this.runDefaultModel === undefined) {
+      this.runDefaultModel = spec;
+      return;
+    }
+    if (spec !== this.runDefaultModel) this.runModelChanged = true;
+  }
+
+  /**
+   * Fail fast when the model a run started on has disappeared from the registry
+   * (auth removed, provider disabled, settings rewritten mid-run). The alternative
+   * is what bit the 2026-09-21 run: a later agent silently binds whatever the
+   * settings default now says and the eventual failure reads as a schema error.
+   * Checked only for agents on the run's default route; an explicit pin already
+   * throws MODEL_NOT_FOUND on its own. An empty/absent catalog is treated as
+   * "registry not ready", never as evidence the model was removed.
+   */
+  private assertRunModelAvailable(modelRegistry: ModelRegistry, label?: string): void {
+    const spec = this.runDefaultModel;
+    if (spec === undefined) return;
+    let available: Model<any>[];
+    try {
+      if (typeof modelRegistry.getAvailable !== "function") return;
+      available = modelRegistry.getAvailable();
+    } catch {
+      return; // a registry read failure is not evidence the model vanished
+    }
+    if (available.length === 0) return;
+    if (available.some((model) => canonicalModelSpec(model) === spec)) return;
+    throw new WorkflowError(
+      `Model "${spec}" is no longer enabled: it was the model this run started on, but it is gone from the available-models registry (a settings, auth, or provider change mid-run). Re-run with an available model (see /workflows-models).`,
+      WorkflowErrorCode.MODEL_NOT_FOUND,
+      { recoverable: false, agentLabel: label },
+    );
   }
 
   /**
@@ -1150,6 +1234,11 @@ export class WorkflowAgent {
       resolvedModel: modelSpec,
       modelSource: options.modelSource,
     });
+    // The route a mid-run settings change can silently swap: no explicit
+    // model/tier/phase, so the model comes from the run's default (inherited
+    // main model, implicit medium tier, or the session/settings default).
+    const reliesOnRunDefault = modelSource === "default" || modelSource === "session";
+    let boundModelSpec: string | undefined;
     const resolver = options.preSpawnModel ?? this.preSpawnModel ?? getPreSpawnModelResolver();
     let pinAfterPolicy = Boolean(options.model || options.tier);
     let policySelectedSpec: string | undefined;
@@ -1224,6 +1313,7 @@ export class WorkflowAgent {
       } else {
         resolvedModel = resolved.model;
         resolvedThinkingLevel = resolved.thinkingLevel ?? options.thinking;
+        boundModelSpec = resolved.resolvedSpec ?? canonicalModelSpec(resolved.model);
         options.onModelResolved?.(
           resolved.thinkingLevel !== undefined || options.thinking === undefined
             ? (resolved.resolvedSpec ?? canonicalModelSpec(resolved.model))
@@ -1235,6 +1325,11 @@ export class WorkflowAgent {
       }
     }
     resolvedThinkingLevel ??= options.thinking;
+
+    // A default-routed agent whose run-start model has vanished must fail HERE,
+    // naming the model, instead of silently binding the new settings default and
+    // surfacing a misleading schema failure four turns later.
+    if (reliesOnRunDefault) this.assertRunModelAvailable(modelRegistry, options.label);
 
     const agentDir = getAgentDir();
     // Key persisted sessions by the runner's project cwd (this.cwd), NOT the
@@ -1414,10 +1509,15 @@ export class WorkflowAgent {
       // covered the spec'd paths only). Inside the lifecycle try so a
       // throwing host callback cannot leak the session (finally disposes it).
       if (!resolvedModel && session.model) {
-        options.onModelResolved?.(
-          formatModelSpecWithThinking(canonicalModelSpec(session.model), resolvedThinkingLevel),
-        );
+        boundModelSpec = formatModelSpecWithThinking(canonicalModelSpec(session.model), resolvedThinkingLevel);
+        options.onModelResolved?.(boundModelSpec);
       }
+      // Snapshot the run's default-route model now that an agent has actually
+      // bound one, and record whether it diverged from the run-start snapshot.
+      // An embedder-injected session.model is not tracked: it may come from a
+      // different registry than this agent's, so "no longer enabled" cannot be
+      // asserted against it.
+      this.noteRunModel(boundModelSpec, reliesOnRunDefault && this.sessionOptions.model === undefined);
       if (options.signal?.aborted) throw new Error("Subagent was aborted");
       if (options.signal) {
         const onAbort = () => void session.abort();
@@ -1442,8 +1542,18 @@ export class WorkflowAgent {
       throwIfProviderLimit(session.messages, options.label);
 
       if (options.schema) {
-        const result = (await resolveStructuredOutput(session, capture, options.schema, options, () =>
-          this.lastAssistantText(turnMessages),
+        const result = (await resolveStructuredOutput(
+          session,
+          capture,
+          options.schema,
+          {
+            maxSchemaRetries: options.maxSchemaRetries,
+            signal: options.signal,
+            label: options.label,
+            model: boundModelSpec ?? this.runDefaultModel,
+            modelChanged: this.runModelChanged,
+          },
+          () => this.lastAssistantText(turnMessages),
         )) as AgentRunResult<TSchemaDef>;
         threadTurnSucceeded = true;
         return result;

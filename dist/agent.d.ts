@@ -38,16 +38,31 @@ export interface StructuredSession {
     messages: unknown[];
 }
 /**
+ * Render the payload a schema failure is about for a one-line error: collapse
+ * whitespace and cap at ~200 chars, so a 100k-token assistant message can't bury
+ * the rest of the message. Empty output is named explicitly (the common case
+ * where the model answered in prose or emitted nothing) rather than showing "".
+ */
+export declare function describeOffendingPayload(text: string, max?: number): string;
+/**
  * Resolve a schema agent's result. If the tool was called, return the captured
  * value. Otherwise re-prompt up to maxSchemaRetries (tools restricted to
  * structured_output), then try strict schema-validated prose extraction, else
  * throw SCHEMA_NONCOMPLIANCE (non-recoverable — surfaced, never a silent null).
  * Module-level with an injected `lastText` so it is unit-testable.
+ *
+ * The final error names the model that produced the payload and whether the run's
+ * model changed underneath it, plus the offending payload itself. A bare
+ * "did not produce valid structured_output" gave a 2026-09-21 long run nothing to
+ * reconstruct from but timestamps and settings.json; these three facts are what
+ * make the failure legible on its own.
  */
 export declare function resolveStructuredOutput<T>(session: StructuredSession, capture: StructuredOutputCapture<T>, schema: TSchema, options: {
     maxSchemaRetries?: number;
     signal?: AbortSignal;
     label?: string;
+    model?: string;
+    modelChanged?: boolean;
 }, lastText: (messages: unknown[]) => string): Promise<T>;
 /**
  * Resolve which concrete model spec a subagent should use. Precedence, most
@@ -379,6 +394,19 @@ export declare class WorkflowAgent {
      */
     private warnedImplicitRouteUnavailable;
     /**
+     * The concrete model the run's default route first bound: the FIRST untagged
+     * agent (no explicit model/tier/phase, so it inherits the run default) records
+     * its bound spec here. One WorkflowAgent instance runs one workflow invocation
+     * (see the class lifetime note), so this is a run-scoped snapshot, not a
+     * per-agent value. It backs two diagnostics: whether a later default-routed
+     * agent was silently re-routed to a different model (runModelChanged), and the
+     * "no longer enabled" fail-fast that replaces an unrelated schema error four
+     * turns later.
+     */
+    private runDefaultModel?;
+    /** Set once a later default-routed agent bound a model different from runDefaultModel. */
+    private runModelChanged;
+    /**
      * Named conversations live for this WorkflowAgent instance. Production creates
      * one instance per workflow invocation; embedders that inject and reuse an
      * agent are responsible for choosing the longer thread lifetime deliberately.
@@ -388,6 +416,26 @@ export declare class WorkflowAgent {
     /** Unique per-instance identity: agent ids must never collide across WorkflowAgent instances. */
     private readonly agentInstanceId;
     constructor(options?: WorkflowAgentOptions);
+    /**
+     * Record the concrete model an agent bound, and report whether a default-routed
+     * agent diverged from the run's snapshot. `trackForRun` is true only for a
+     * default-routed agent whose model actually came from this agent's registry
+     * layer — an embedder-injected `session.model` may belong to a different
+     * registry, so it must not seed a "run-start model" this agent cannot vouch for.
+     * Explicit/tier/phase pins are deliberate per-agent choices and never update
+     * the snapshot. Returns nothing; the run-level flag is exposed for diagnostics.
+     */
+    private noteRunModel;
+    /**
+     * Fail fast when the model a run started on has disappeared from the registry
+     * (auth removed, provider disabled, settings rewritten mid-run). The alternative
+     * is what bit the 2026-09-21 run: a later agent silently binds whatever the
+     * settings default now says and the eventual failure reads as a schema error.
+     * Checked only for agents on the run's default route; an explicit pin already
+     * throws MODEL_NOT_FOUND on its own. An empty/absent catalog is treated as
+     * "registry not ready", never as evidence the model was removed.
+     */
+    private assertRunModelAvailable;
     /**
      * A resource loader shared per directory within this run (#109).
      *

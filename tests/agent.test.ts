@@ -1527,6 +1527,60 @@ test("WorkflowAgent.run(): an untagged agent reports the REAL session model (set
   }
 });
 
+test("WorkflowAgent.run(): a default-routed agent fails fast when the run-start model disappears mid-run", async () => {
+  // The 2026-09-21 long run silently re-routed to a new settings default when
+  // the original model was disabled mid-run, then died as an opaque schema
+  // failure four turns later. The run snapshots its default-route model on the
+  // first agent and names the disappearance up front.
+  const home = mkdtempSync(join(tmpdir(), "pi-dw-model-vanish-home-"));
+  const cwd = mkdtempSync(join(tmpdir(), "pi-dw-model-vanish-cwd-"));
+  const core = createFauxCore({
+    provider: "fauxtest-vanish",
+    models: [{ id: "faux-model", name: "Faux Model", contextWindow: 128000, maxTokens: 4096 }],
+  });
+  try {
+    await withFakeHomeAsync(home, async () => {
+      const agentDir = join(home, ".pi", "agent");
+      mkdirSync(agentDir, { recursive: true });
+      writeFileSync(
+        join(agentDir, "settings.json"),
+        JSON.stringify({ defaultProvider: "fauxtest-vanish", defaultModel: "faux-model" }),
+      );
+      const registry = await fauxRegistry(home, "fauxtest-vanish", core);
+      const realGetAvailable = registry.getAvailable.bind(registry);
+      let hideModel = false;
+      // Shadow the prototype method with an own property so the SECOND agent
+      // sees the run-start model as no longer enabled.
+      (registry as { getAvailable: () => unknown }).getAvailable = () =>
+        hideModel
+          ? realGetAvailable().filter((model) => !(model.provider === "fauxtest-vanish" && model.id === "faux-model"))
+          : realGetAvailable();
+      core.setResponses([
+        fauxAssistantMessage("first-run-ok", { stopReason: "stop" }),
+        fauxAssistantMessage("second-run-should-not-happen", { stopReason: "stop" }),
+      ]);
+
+      const agent = new WorkflowAgent({ cwd, modelRegistry: registry });
+      const first = await agent.run("task one", { label: "untagged-1" });
+      assert.ok(first.includes("first-run-ok"), "the first agent establishes the run-start model snapshot");
+
+      hideModel = true;
+      await assert.rejects(agent.run("task two", { label: "untagged-2" }), (error: unknown) => {
+        assert.ok(error instanceof WorkflowError);
+        assert.equal(error.code, WorkflowErrorCode.MODEL_NOT_FOUND);
+        assert.equal(error.recoverable, false);
+        assert.match(error.message, /no longer enabled/);
+        assert.match(error.message, /fauxtest-vanish\/faux-model/);
+        assert.equal(error.agentLabel, "untagged-2");
+        return true;
+      });
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("WorkflowAgent.run(): the real-model report keeps the caller's thinking suffix", async () => {
   // The spec'd path appends `:level` when the caller set `thinking`; the
   // post-creation report must mirror that or a thinking-aware display still

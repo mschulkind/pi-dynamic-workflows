@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Type } from "typebox";
 import {
+  describeOffendingPayload,
   extractValidated,
   lastAssistantError,
   resolveStructuredOutput,
@@ -37,6 +38,20 @@ describe("extractValidated", () => {
 
   it("returns undefined for malformed JSON", () => {
     assert.equal(extractValidated("{word: ", Schema), undefined);
+  });
+});
+
+describe("describeOffendingPayload", () => {
+  it("collapses whitespace and caps the payload at ~200 chars", () => {
+    assert.equal(describeOffendingPayload("  a\n\tb  "), "a b");
+    const long = "x".repeat(500);
+    const described = describeOffendingPayload(long);
+    assert.equal(described.length, 201, "200 chars plus the ellipsis");
+    assert.ok(described.endsWith("…"));
+  });
+
+  it("names empty output explicitly rather than returning an empty string", () => {
+    assert.equal(describeOffendingPayload("   \n"), "(no assistant text)");
   });
 });
 
@@ -90,6 +105,44 @@ describe("resolveStructuredOutput", () => {
     await assert.rejects(
       () => resolveStructuredOutput(session, capture, Schema, opts, () => "no json at all"),
       /structured_output/i,
+    );
+  });
+
+  it("names the model, the offending payload, and a mid-run model change in the failure", async () => {
+    const { session, capture } = makeSession();
+    await assert.rejects(
+      () =>
+        resolveStructuredOutput(
+          session,
+          capture,
+          Schema,
+          { ...opts, model: "kilo/deepseek-v4.1-flash", modelChanged: true },
+          () => "I could not comply.\nHere is some prose instead of JSON.",
+        ),
+      (err: unknown) => {
+        const error = err as { code?: string; message?: string; details?: Record<string, unknown> };
+        assert.equal(error.code, WorkflowErrorCode.SCHEMA_NONCOMPLIANCE);
+        assert.match(error.message ?? "", /kilo\/deepseek-v4\.1-flash/);
+        assert.match(error.message ?? "", /model changed mid-run/);
+        assert.match(error.message ?? "", /I could not comply\. Here is some prose instead of JSON\./);
+        assert.equal(error.details?.model, "kilo/deepseek-v4.1-flash");
+        assert.equal(error.details?.modelChanged, true);
+        return true;
+      },
+    );
+  });
+
+  it("omits the change note and uses 'unknown' when no model is threaded through", async () => {
+    const { session, capture } = makeSession();
+    await assert.rejects(
+      () => resolveStructuredOutput(session, capture, Schema, opts, () => "prose"),
+      (err: unknown) => {
+        const message = (err as { message?: string }).message ?? "";
+        assert.match(message, /model: unknown/);
+        assert.doesNotMatch(message, /changed mid-run/);
+        assert.match(message, /offending payload: prose/);
+        return true;
+      },
     );
   });
 
