@@ -11,7 +11,7 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { AgentSession, type ExtensionAPI, type ExtensionUIContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { toPiUsage, type PiUsage } from "./agent-usage.js";
+import { type PiUsage, toPiUsage } from "./agent-usage.js";
 import {
   aggregateAgentUsage,
   fmtCost,
