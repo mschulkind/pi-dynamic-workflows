@@ -25,6 +25,8 @@ Read only what the task needs:
 - Start with literal `export const meta = { name, description }`; declare phases as an array of used `{ title }` objects and enter each named phase.
 - Call `agent()` at least once, give every call a short unique `label`, and return plain JSON data explicitly.
 - Pair ordered results with stable work IDs before filtering. When one agent consumes another's selected result, include both its stable ID and actual data in the downstream prompt. Treat recoverable `null` as missing coverage and report it.
+- Reserve `schema` for data you actually parse; never put it on a prose answer.
+- A `schema` call is a hard failure surface: after bounded repair, noncompliance throws `SCHEMA_NONCOMPLIANCE` and bypasses `agentRetries`. Keep schemas permissive — no `required` beyond the fields you read, no `additionalProperties: false`, and tolerate strings where numbers are wanted — and isolate schema-dependent calls in their own phase so one validation failure cannot take down expensive siblings.
 - Bound fan-out, loops, retries, agents, and concurrency to the task. Treat invocation-level token and time caps as opt-in user constraints, not defaults.
 - Use `log()` for new code; `console` is compatibility-only.
 - Write plain JavaScript without imports or filesystem modules. Pass nondeterminism through `args`; `Date.now()`, `Math.random()`, and no-argument `new Date()` are unavailable.
