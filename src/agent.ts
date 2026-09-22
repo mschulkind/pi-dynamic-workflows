@@ -1242,6 +1242,17 @@ export class WorkflowAgent {
     const resolver = options.preSpawnModel ?? this.preSpawnModel ?? getPreSpawnModelResolver();
     let pinAfterPolicy = Boolean(options.model || options.tier);
     let policySelectedSpec: string | undefined;
+    // Pin the run's default-route model once the first agent has bound one.
+    // Without this, a default-routed agent re-reads the per-turn settings
+    // default on every call, so a mid-run settings/model change silently
+    // re-routes agents that were already in flight (the 2026-09-21 failure).
+    // Explicit model/tier/phase requests are intentionally left alone: a
+    // script that routes per agent must keep doing so. The preSpawnModel policy
+    // runs AFTER the pin so it sees the model the agent would actually use.
+    if (reliesOnRunDefault && this.runDefaultModel !== undefined) {
+      modelSpec = this.runDefaultModel;
+      pinAfterPolicy = true;
+    }
     if (resolver) {
       const decision = await applyPreSpawnModel(resolver, {
         requestedModel: options.model,
@@ -1257,6 +1268,13 @@ export class WorkflowAgent {
         policySelectedSpec = decision.model;
       }
     }
+
+    // A default-routed agent whose run-start model has vanished must fail HERE,
+    // naming the model, instead of silently binding the new settings default and
+    // surfacing a misleading schema failure four turns later. Runs before the
+    // spec resolution so a pinned-but-removed model does not first fail with the
+    // generic "tier undefined" message.
+    if (reliesOnRunDefault) this.assertRunModelAvailable(modelRegistry, options.label);
 
     // Resolve a requested model spec to a Model object. Specs use Pi CLI-style
     // parsing, including an optional :thinking suffix such as gpt-5.5:xhigh.
@@ -1325,11 +1343,6 @@ export class WorkflowAgent {
       }
     }
     resolvedThinkingLevel ??= options.thinking;
-
-    // A default-routed agent whose run-start model has vanished must fail HERE,
-    // naming the model, instead of silently binding the new settings default and
-    // surfacing a misleading schema failure four turns later.
-    if (reliesOnRunDefault) this.assertRunModelAvailable(modelRegistry, options.label);
 
     const agentDir = getAgentDir();
     // Key persisted sessions by the runner's project cwd (this.cwd), NOT the

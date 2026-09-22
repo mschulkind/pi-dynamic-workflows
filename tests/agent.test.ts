@@ -1581,6 +1581,94 @@ test("WorkflowAgent.run(): a default-routed agent fails fast when the run-start 
   }
 });
 
+test("WorkflowAgent.run(): untagged agents stay pinned to the run-start model when the settings default changes mid-run", async () => {
+  // The per-turn settings read let a mid-run settings change silently re-route
+  // agents that were already in flight. The first default-routed agent snapshots
+  // its bound model; later untagged agents must stay on it.
+  const home = mkdtempSync(join(tmpdir(), "pi-dw-model-pin-run-home-"));
+  const cwd = mkdtempSync(join(tmpdir(), "pi-dw-model-pin-run-cwd-"));
+  const core = createFauxCore({
+    provider: "fauxtest-pinrun",
+    models: [
+      { id: "pinned-model", name: "Pinned Model", contextWindow: 128000, maxTokens: 4096 },
+      { id: "other-model", name: "Other Model", contextWindow: 128000, maxTokens: 4096 },
+    ],
+  });
+  try {
+    await withFakeHomeAsync(home, async () => {
+      const agentDir = join(home, ".pi", "agent");
+      mkdirSync(agentDir, { recursive: true });
+      const settingsPath = join(agentDir, "settings.json");
+      writeFileSync(settingsPath, JSON.stringify({ defaultProvider: "fauxtest-pinrun", defaultModel: "pinned-model" }));
+      const registry = await fauxRegistry(home, "fauxtest-pinrun", core);
+      core.setResponses([
+        fauxAssistantMessage("first", { stopReason: "stop" }),
+        fauxAssistantMessage("second", { stopReason: "stop" }),
+      ]);
+
+      const resolved: string[] = [];
+      const agent = new WorkflowAgent({ cwd, modelRegistry: registry });
+      await agent.run("task one", { label: "untagged-1", onModelResolved: (id) => resolved.push(id) });
+
+      // Mid-run settings rewrite: a default-routed agent must NOT follow it.
+      writeFileSync(settingsPath, JSON.stringify({ defaultProvider: "fauxtest-pinrun", defaultModel: "other-model" }));
+      await agent.run("task two", { label: "untagged-2", onModelResolved: (id) => resolved.push(id) });
+
+      assert.deepEqual(
+        resolved,
+        ["fauxtest-pinrun/pinned-model", "fauxtest-pinrun/pinned-model"],
+        "the second untagged agent stays on the run-start model, not the changed settings default",
+      );
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("WorkflowAgent.run(): an explicit per-agent model still overrides the run pin", async () => {
+  // Pinning must not flatten deliberate per-agent routing: an explicit model on
+  // a later call is untouched.
+  const home = mkdtempSync(join(tmpdir(), "pi-dw-model-pin-explicit-home-"));
+  const cwd = mkdtempSync(join(tmpdir(), "pi-dw-model-pin-explicit-cwd-"));
+  const core = createFauxCore({
+    provider: "fauxtest-pinexplicit",
+    models: [
+      { id: "pinned-model", name: "Pinned Model", contextWindow: 128000, maxTokens: 4096 },
+      { id: "explicit-model", name: "Explicit Model", contextWindow: 128000, maxTokens: 4096 },
+    ],
+  });
+  try {
+    await withFakeHomeAsync(home, async () => {
+      const agentDir = join(home, ".pi", "agent");
+      mkdirSync(agentDir, { recursive: true });
+      writeFileSync(
+        join(agentDir, "settings.json"),
+        JSON.stringify({ defaultProvider: "fauxtest-pinexplicit", defaultModel: "pinned-model" }),
+      );
+      const registry = await fauxRegistry(home, "fauxtest-pinexplicit", core);
+      core.setResponses([
+        fauxAssistantMessage("first", { stopReason: "stop" }),
+        fauxAssistantMessage("second", { stopReason: "stop" }),
+      ]);
+
+      const resolved: string[] = [];
+      const agent = new WorkflowAgent({ cwd, modelRegistry: registry });
+      await agent.run("task one", { label: "untagged", onModelResolved: (id) => resolved.push(id) });
+      await agent.run("task two", {
+        label: "explicit",
+        model: "fauxtest-pinexplicit/explicit-model",
+        onModelResolved: (id) => resolved.push(id),
+      });
+
+      assert.deepEqual(resolved, ["fauxtest-pinexplicit/pinned-model", "fauxtest-pinexplicit/explicit-model"]);
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("WorkflowAgent.run(): the real-model report keeps the caller's thinking suffix", async () => {
   // The spec'd path appends `:level` when the caller set `thinking`; the
   // post-creation report must mirror that or a thinking-aware display still
