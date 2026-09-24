@@ -347,7 +347,7 @@ function persistProgressSettings(settingsStore, settings) {
 }
 function loadProgressMode(settingsStore) {
     try {
-        return settingsStore.load().progressPanelMode ?? "compact";
+        return settingsStore.load().progressPanelMode ?? "detailed";
     }
     catch {
         return "compact";

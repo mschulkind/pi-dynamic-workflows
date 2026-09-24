@@ -429,7 +429,7 @@ function persistProgressSettings(settingsStore: WorkflowSettingsStore, settings:
 
 function loadProgressMode(settingsStore: WorkflowSettingsStore): "compact" | "detailed" {
   try {
-    return settingsStore.load().progressPanelMode ?? "compact";
+    return settingsStore.load().progressPanelMode ?? "detailed";
   } catch {
     return "compact";
   }

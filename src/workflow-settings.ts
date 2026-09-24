@@ -30,7 +30,7 @@ export interface WorkflowSettings {
   defaultConcurrency?: number;
   /** Default retry attempts after recoverable agent failures. */
   defaultAgentRetries?: number;
-  /** Bottom task-panel display mode: "compact" (default, one line per run) | "detailed". */
+  /** Bottom task-panel display mode: "detailed" (default) | "compact" (one line per run). */
   progressPanelMode?: "compact" | "detailed";
   /** Max agents shown per phase in detailed progress mode (default 8). */
   progressPanelMaxAgents?: number;

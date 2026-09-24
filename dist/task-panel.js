@@ -1553,7 +1553,7 @@ export function installTaskPanel(_pi, manager, ui, opts = {}) {
             // hasActiveRun() first: settings() is a synchronous disk read, and the
             // tick (2s) always outlives its cache TTL — with zero workflows this
             // ordering avoids ~43k pointless config reads/day (audit2 #32).
-            if (hasActiveRun() && settings().progressPanelMode === "detailed")
+            if (hasActiveRun() && (settings().progressPanelMode ?? "detailed") === "detailed")
                 tui.requestRender();
         }, 2000);
         timer.unref?.();
@@ -1562,7 +1562,7 @@ export function installTaskPanel(_pi, manager, ui, opts = {}) {
         const comp = {
             render: (width) => {
                 const s = settings();
-                if (s.progressPanelMode === "detailed") {
+                if ((s.progressPanelMode ?? "detailed") === "detailed") {
                     return renderPanelDetailed(manager, theme, width, clampMaxAgents(s.progressPanelMaxAgents), Date.now());
                 }
                 return renderPanel(manager, theme, width);

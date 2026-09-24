@@ -3559,13 +3559,24 @@ describe("installTaskPanel mode selection", () => {
     return lines;
   }
 
-  it("uses compact rendering when no loadSettings is provided", () => {
+  it("uses detailed rendering when no loadSettings is provided", () => {
     const lines = captureRender();
     assert.ok(
-      lines.some((l) => /1 agents/.test(l)),
-      "compact one-liner",
+      lines.some((l) => /▶ P1/.test(l)),
+      "per-phase detail by default",
     );
-    assert.ok(!lines.some((l) => /▶ P1/.test(l)), "no per-phase detail in compact");
+    assert.ok(
+      lines.some((l) => /\[1\] ● a/.test(l)),
+      "per-agent row by default",
+    );
+  });
+
+  it("uses detailed rendering when settings omit the mode", () => {
+    const lines = captureRender(() => ({}));
+    assert.ok(
+      lines.some((l) => /▶ P1/.test(l)),
+      "per-phase detail by default",
+    );
   });
 
   it("uses compact rendering when the mode is compact", () => {

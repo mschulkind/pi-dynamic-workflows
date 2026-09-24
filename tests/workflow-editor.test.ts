@@ -925,6 +925,15 @@ describe("registerWorkflowProgressCommands", () => {
     assert.equal(commands.size, 1, "only one command is registered");
   });
 
+  it("reports detailed mode when no preference is saved", async () => {
+    const mod = await load();
+    const { commands, sent, settingsStore, pi } = setup();
+    mod.registerWorkflowProgressCommands(pi, settingsStore);
+
+    await commands.get("workflows-progress")?.handler("status", {});
+    assert.match(sent.at(-1)?.content ?? "", /panel is detailed/i);
+  });
+
   it("persists a valid mode and reports both mode and max on status", async () => {
     const mod = await load();
     const { commands, sent, settingsStore, getSettings, pi } = setup();
