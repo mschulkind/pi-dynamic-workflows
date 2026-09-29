@@ -50,6 +50,11 @@ test("publishes bounded active workflow summaries and releases them on session s
     runs = runs.map((run) => ({ ...run, status: "paused" }));
     emitter.emit("paused", { runId: "run-a" });
     assert.equal(entry.rows[0].status, "paused");
+    const [first] = runs;
+    assert.ok(first);
+    Object.assign(first, { status: "completed", pendingDelivery: { id: "delivery-1" } });
+    emitter.emit("complete", { runId: "run-a" });
+    assert.equal(entry.rows[0].status, "pending");
     runs = [];
     emitter.emit("stopped", { runId: "run-a" });
     assert.deepEqual(entry.rows, []);
