@@ -1536,7 +1536,12 @@ test("WorkflowAgent.run(): a default-routed agent fails fast when the run-start 
   const cwd = mkdtempSync(join(tmpdir(), "pi-dw-model-vanish-cwd-"));
   const core = createFauxCore({
     provider: "fauxtest-vanish",
-    models: [{ id: "faux-model", name: "Faux Model", contextWindow: 128000, maxTokens: 4096 }],
+    // Keep another available model: an empty registry is intentionally treated
+    // as unready rather than proof that the run-start model was removed.
+    models: [
+      { id: "faux-model", name: "Faux Model", contextWindow: 128000, maxTokens: 4096 },
+      { id: "alternative", name: "Alternative", contextWindow: 128000, maxTokens: 4096 },
+    ],
   });
   try {
     await withFakeHomeAsync(home, async () => {
