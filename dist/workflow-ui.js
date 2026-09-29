@@ -1733,6 +1733,14 @@ function currentCount(state, model) {
 export function openWorkflowNavigator(pi, manager, ui, opts = {}) {
     const model = new NavigatorModel(manager, () => opts.getStorage?.() ?? opts.storage);
     const state = new NavigatorState();
+    if (opts.initialRunId) {
+        const snapshot = model.visible("");
+        const index = snapshot.items.findIndex((item) => item.kind === "run" && item.row.runId === opts.initialRunId);
+        if (index >= 0) {
+            state.cursor = index;
+            state.drill(model, snapshot);
+        }
+    }
     return ui.custom((tui, theme, _keybindings, done) => {
         const rerender = () => tui.requestRender();
         const markdownTheme = getMarkdownTheme();

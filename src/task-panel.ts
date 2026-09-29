@@ -22,6 +22,7 @@ import {
   type WorkflowAgentSnapshot,
   type WorkflowSnapshot,
 } from "./display.js";
+import { mixedFleetAccepted } from "./mixed-fleet.js";
 import type { PendingDeliveryMarker, PersistedRunState } from "./run-persistence.js";
 import { runSummary } from "./run-record-store.js";
 import type { ManagedRun, WorkflowManager } from "./workflow-manager.js";
@@ -1823,6 +1824,7 @@ export function installTaskPanel(
       // open the navigator, the user runs /workflows (the panel takes no input).
       const comp: Component & { dispose?(): void } = {
         render: (width: number) => {
+          if (mixedFleetAccepted(manager.getSessionId?.())) return [];
           const s = settings();
           if ((s.progressPanelMode ?? "detailed") === "detailed") {
             return renderPanelDetailed(manager, theme, width, clampMaxAgents(s.progressPanelMaxAgents), Date.now());

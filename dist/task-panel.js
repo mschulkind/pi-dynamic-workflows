@@ -12,6 +12,7 @@ import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { toPiUsage } from "./agent-usage.js";
 import { aggregateAgentUsage, fmtCost, fmtTokenSegment, shorten, statusIcon, tokenFigures, } from "./display.js";
+import { mixedFleetAccepted } from "./mixed-fleet.js";
 import { runSummary } from "./run-record-store.js";
 import { shortModel } from "./workflow-ui.js";
 // `tokenUsage` is included so the detailed panel's live token/s counter refreshes
@@ -1561,6 +1562,8 @@ export function installTaskPanel(_pi, manager, ui, opts = {}) {
         // open the navigator, the user runs /workflows (the panel takes no input).
         const comp = {
             render: (width) => {
+                if (mixedFleetAccepted(manager.getSessionId?.()))
+                    return [];
                 const s = settings();
                 if ((s.progressPanelMode ?? "detailed") === "detailed") {
                     return renderPanelDetailed(manager, theme, width, clampMaxAgents(s.progressPanelMaxAgents), Date.now());

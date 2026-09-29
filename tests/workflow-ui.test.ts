@@ -1143,6 +1143,29 @@ function fakeUiCapturingComponent(): {
   return { ui, notifications, getComponent: () => capturedComponent };
 }
 
+test("navigator opens the exact mixed-FleetView run rather than the first run", async () => {
+  const { ui, getComponent } = fakeUiCapturingComponent();
+  const manager = {
+    on: () => {},
+    off: () => {},
+    listRuns: () =>
+      [
+        { runId: "run-a", workflowName: "First", status: "running", phases: ["Scan"], agents: [], logs: [] },
+        { runId: "run-b", workflowName: "Second", status: "running", phases: ["Review"], agents: [], logs: [] },
+      ] as unknown as PersistedRunState[],
+    getRun: () => undefined,
+  } as unknown as WorkflowManager;
+  openWorkflowNavigator({} as ExtensionAPI, manager, ui, { initialRunId: "run-b" }).catch(() => {});
+  await Promise.resolve();
+  await Promise.resolve();
+  const component = getComponent();
+  assert.ok(component);
+  const rendered = component.render(100).join("\n");
+  assert.match(rendered, /Second/);
+  assert.match(rendered, /Review/);
+  assert.doesNotMatch(rendered, /First/);
+});
+
 test("deleting a saved workflow whose storage.delete throws (e.g. EACCES) notifies an error instead of crashing the overlay (#330 audit follow-up)", async () => {
   const { ui, notifications, getComponent } = fakeUiCapturingComponent();
 

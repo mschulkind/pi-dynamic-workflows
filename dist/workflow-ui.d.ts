@@ -250,6 +250,8 @@ export interface NavigatorOptions {
     getManager?: () => WorkflowManager;
     /** Overlay anchor position: "center" (default) or "right-center" for sidebar. */
     anchor?: OverlayAnchor;
+    /** Open a specific live run's phases, if it remains available. */
+    initialRunId?: string;
 }
 /**
  * Open the interactive `/workflows` navigator as a focused overlay. Resolves when

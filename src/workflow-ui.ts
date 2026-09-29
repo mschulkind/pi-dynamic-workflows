@@ -1973,6 +1973,8 @@ export interface NavigatorOptions {
   getManager?: () => WorkflowManager;
   /** Overlay anchor position: "center" (default) or "right-center" for sidebar. */
   anchor?: OverlayAnchor;
+  /** Open a specific live run's phases, if it remains available. */
+  initialRunId?: string;
 }
 
 /**
@@ -1987,6 +1989,14 @@ export function openWorkflowNavigator(
 ): Promise<void> {
   const model = new NavigatorModel(manager, () => opts.getStorage?.() ?? opts.storage);
   const state = new NavigatorState();
+  if (opts.initialRunId) {
+    const snapshot = model.visible("");
+    const index = snapshot.items.findIndex((item) => item.kind === "run" && item.row.runId === opts.initialRunId);
+    if (index >= 0) {
+      state.cursor = index;
+      state.drill(model, snapshot);
+    }
+  }
 
   return ui.custom<void>(
     (tui: TUI, theme: Theme, _keybindings, done: (r: undefined) => void) => {

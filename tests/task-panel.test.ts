@@ -2993,6 +2993,37 @@ describe("installResultDelivery", () => {
 // ─── installTaskPanel ─────────────────────────────────────────────────────────
 
 describe("installTaskPanel", () => {
+  it("keeps the old panel until FleetView acknowledges the same session", () => {
+    const slot = Symbol.for("pi.mixed-work.fleet.v1");
+    const manager = new EventEmitter() as EventEmitter & {
+      getSessionId: () => string;
+      listRuns: () => unknown[];
+      getRun: () => unknown;
+    };
+    manager.getSessionId = () => "session-a";
+    manager.listRuns = () => [{ runId: "run-1", workflowName: "Audit", status: "running", agents: [], logs: [] }];
+    manager.getRun = () => undefined;
+    let factory: ((tui: unknown, theme: unknown) => { render(width: number): string[]; dispose(): void }) | undefined;
+    const ui = {
+      setWidget: (_key: string, fn: typeof factory) => {
+        factory = fn;
+      },
+    };
+    mod.installTaskPanel(null, manager, ui);
+    const widget = factory?.({ requestRender() {} }, { fg: (_c: string, s: string) => s, bold: (s: string) => s });
+    assert.ok(widget);
+    try {
+      assert.ok(widget.render(100).length > 0);
+      (globalThis as Record<symbol, unknown>)[slot] = { version: 1, sessionId: "session-b", accepted: true };
+      assert.ok(widget.render(100).length > 0, "another session must not hide this panel");
+      (globalThis as Record<symbol, unknown>)[slot] = { version: 1, sessionId: "session-a", accepted: true };
+      assert.deepEqual(widget.render(100), []);
+    } finally {
+      widget.dispose();
+      delete (globalThis as Record<symbol, unknown>)[slot];
+    }
+  });
+
   it("registers a widget named workflow-tasks with belowEditor placement", () => {
     const manager = new EventEmitter() as ReturnType<typeof EventEmitter> & {
       getRun: (...args: unknown[]) => unknown;

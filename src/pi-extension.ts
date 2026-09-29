@@ -13,6 +13,7 @@ import {
   WORKFLOW_EXTENSION_VERSION,
   type WorkflowReloadRuntime,
 } from "./extension-reload.js";
+import { installMixedFleet } from "./mixed-fleet.js";
 import { registerAllSavedWorkflows } from "./saved-commands.js";
 import {
   bindSessionDelivery,
@@ -30,6 +31,7 @@ import { WorkflowManager } from "./workflow-manager.js";
 import { createWorkflowStorage, type WorkflowStorage } from "./workflow-saved.js";
 import { loadWorkflowSettings, saveWorkflowSettingsForCwd } from "./workflow-settings.js";
 import { createWorkflowTool } from "./workflow-tool.js";
+import { openWorkflowNavigator } from "./workflow-ui.js";
 import { registerWorkflowModelsCommand } from "./workflows-models-command.js";
 
 export { installHostSessionCapture } from "./task-panel.js";
@@ -178,9 +180,11 @@ export default function extension(pi: ExtensionAPI) {
   pi.registerTool(workflowControlTool);
 
   let usageLimitScheduler = new UsageLimitScheduler(manager);
+  let disposeMixedFleet = () => {};
 
   pi.on("session_shutdown", (event?: { reason?: string; targetSessionFile?: string }) => {
     usageLimitScheduler.dispose();
+    disposeMixedFleet();
     // Always stop live sends first so a completion racing teardown cannot
     // deliver into the outgoing session (or throw on a just-stale ctx and be
     // lost). Replacement reasons stage the runtime for the next generation
@@ -335,6 +339,23 @@ export default function extension(pi: ExtensionAPI) {
     const previousSessionId = manager.getSessionId();
     manager.adoptLiveRunsToSession(sessionId, previousSessionId);
     manager.setSessionId(sessionId, sessionFile);
+    disposeMixedFleet();
+    if (ctx.hasUI) {
+      disposeMixedFleet = installMixedFleet(manager, sessionId, async (runId) => {
+        if (!manager.listRuns().some((run) => run.runId === runId)) {
+          ctx.ui.notify("Workflow is no longer available in this session.", "warning");
+          return;
+        }
+        await openWorkflowNavigator(pi, manager, ctx.ui, {
+          getManager,
+          getStorage,
+          getCwd,
+          initialRunId: runId,
+        });
+      });
+    } else {
+      disposeMixedFleet = () => {};
+    }
 
     // Runtime is bound now (session_start fires after bindCore). Register a
     // session-stable delivery endpoint for THIS session only, then flush any
