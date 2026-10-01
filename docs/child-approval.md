@@ -23,6 +23,12 @@ guard.evaluate({ toolName, toolCallId, parentToolCallId?, input, cwd, signal? })
 guard.close()
 ```
 
+V1 provides no trusted execution identity: a tool name or inside-cwd path
+cannot prove that the executor is a native builtin. The adapter sends neither
+builtin provenance assertions nor exemption hints. The repaired Auto Mode gate
+classifies delegated native tools and custom name collisions alike; root-only
+implicit exemptions do not extend to children. Explicit permissions still apply.
+
 Only explicit `allow` continues execution. Blocking decisions, exceptions,
 malformed responses, missing required authority, and incompatible registries
 block execution or reject admission. The parent key is the actual session-manager
@@ -69,6 +75,12 @@ revoked, not silently reauthorized. Setup/bind failure, cancellation, thread-tur
 completion, and shutdown close guards idempotently. Missing or unavailable
 required authority never degrades into an ungated retry.
 
+Instruction evidence comes only from the destination root
+`before_agent_start` event with structured `systemPromptOptions.contextFiles`.
+Before that snapshot exists, delegated calls requiring classification block
+without invoking the classifier. Child prompts cannot refresh it. An explicit
+root-owned empty array is valid; absent options are not a fresh snapshot.
+
 ## No gate and limitations
 
 A missing slot preserves ordinary behavior only before the scope has required a
@@ -95,18 +107,31 @@ separate boundary.
 
 ## Verification
 
-[Child approval tests](../tests/child-approval.test.ts) use actual SDK sessions,
+[Child approval tests](../tests/child-approval.test.ts) import the committed
+production runtime and use actual SDK sessions,
 local fake providers, and execution spies. The original reproduction wraps the
 original bash tool and runs only a syntax-checking `bash -n` probe; the service
 command in its heredoc is never executed.
 
 The normal suite exercises attachment without requiring Auto Mode as a dependency.
 Cross-fork verification additionally loads the committed gate owner's test helpers
-with local classifier callbacks:
+with local classifier callbacks. The
+[production execution test](../tests/child-approval-production.test.ts) loads the
+actual gate extension into real SDK root sessions and obtains instruction
+snapshots from actual root prompts, not helper-emitted events. It verifies
+custom `read`/`write`/`edit` collisions and original native implementations with
+execution spies, then switches the parent from project A to B before B prompts.
+On native Pi, an allowed outer tool also calls a custom `read` through
+`ctx.executeTool`; the actual gate classifies and blocks that nested executor.
+Pi versions exposing `AgentSessionRuntime` use its actual `switchSession`
+operation; older SDKs fall back to disposal and recreation. No classifier receives A instructions after handoff.
+
+Run the cross-fork checks after building the committed output:
 
 ```bash
+npm run build
 DW_AUTOMODE_TEST_HELPERS=/path/to/pi-automode/tests/test-helpers.ts \
-  npx tsx --test tests/child-approval.test.ts tests/middleware-isolation.test.ts
+  npx tsx --test tests/child-approval*.test.ts tests/middleware-isolation.test.ts
 ```
 
 Run this against native Pi 0.99 with `DW_REQUIRE_NESTED=1` to require nested-call

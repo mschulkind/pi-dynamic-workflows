@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { createCodingTools, ModelRegistry, ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
-import { WorkflowAgent } from "../src/agent.js";
+import { WorkflowAgent } from "../dist/agent.js";
 import { withFakeHomeAsync } from "./helpers/fake-home.js";
 
 const slot = Symbol.for("@mschulkind/pi-child-approval");
@@ -98,7 +98,7 @@ test("original SDK child bash probe is blocked automatically with empty middlewa
 
 import { DefaultResourceLoader, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { ChildApprovalScope } from "../src/child-approval.js";
+import { ChildApprovalScope } from "../dist/child-approval.js";
 
 type Request = {
   toolName: string;
@@ -449,6 +449,7 @@ test(
       const config = baseConfig();
       const ctx = createFakeCtx([], { sessionManager: f.root, cwd: f.home });
       const h = await setupHookTest({ config, ctx });
+      await h.emit("before_agent_start", { systemPrompt: "root", systemPromptOptions: { contextFiles: [] } }, ctx);
       try {
         const agent = f.agent();
         await f.run(agent, "generic", { value: "ON" }, "live");
@@ -522,6 +523,7 @@ for (const change of ["off-on", "reload", "model_select", "session_shutdown"]) {
             });
           },
         });
+        await h.emit("before_agent_start", { systemPrompt: "root", systemPromptOptions: { contextFiles: [] } }, ctx);
         const run = f.run(f.agent());
         try {
           await started;
@@ -576,7 +578,7 @@ test("cancellation closes a pending guard once and prevents execution", async ()
     }
   }));
 
-import { WorkflowManager } from "../src/workflow-manager.js";
+import { WorkflowManager } from "../dist/workflow-manager.js";
 
 test("manager automatically propagates actual parent identity into nested workflow children", async () =>
   fixture(async (f) => {

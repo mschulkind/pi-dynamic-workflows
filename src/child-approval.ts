@@ -141,6 +141,8 @@ export class ChildApprovalScope {
                 signal?.aborted
               )
                 return block();
+              // V1 has no trusted executor identity contract. Names/paths cannot
+              // establish builtin provenance, so forward no exemption hints.
               const request = {
                 toolName: event.toolName,
                 toolCallId: event.toolCallId,
