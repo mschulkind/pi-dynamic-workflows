@@ -1084,6 +1084,7 @@ export async function runWorkflow<T = unknown>(
               shared.runFatalController.signal.addEventListener("abort", onRunFatal, { once: true });
             }
             runPromise = agentRunner.run(prompt, {
+              runId,
               label,
               // Identifiable name for persisted sessions (persistAgentSessions).
               sessionName: agentOptions.thread

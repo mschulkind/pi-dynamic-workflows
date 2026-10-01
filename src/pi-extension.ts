@@ -183,6 +183,7 @@ export default function extension(pi: ExtensionAPI) {
   let disposeMixedFleet = () => {};
 
   pi.on("session_shutdown", (event?: { reason?: string; targetSessionFile?: string }) => {
+    manager.setParentSessionManager(undefined);
     usageLimitScheduler.dispose();
     disposeMixedFleet();
     // Always stop live sends first so a completion racing teardown cannot
@@ -313,6 +314,7 @@ export default function extension(pi: ExtensionAPI) {
       pausedForMismatch = 0;
     }
 
+    manager.setParentSessionManager(ctx.sessionManager);
     manager.setMainModel(ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
     manager.setModelRegistry(ctx.modelRegistry);
 

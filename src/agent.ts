@@ -21,6 +21,7 @@ import type { Static, TSchema } from "typebox";
 import { Check, Convert } from "typebox/value";
 import { type AgentHistoryEntry, compactAgentHistory } from "./agent-history.js";
 import { type AgentUsage, agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
+import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js";
 import { pinChildCacheRetention } from "./child-cache-retention.js";
 
 export type { AgentUsage } from "./agent-usage.js";
@@ -322,6 +323,10 @@ export function filterProviderMiddlewareExtensions(
 
 export interface WorkflowAgentOptions {
   cwd?: string;
+  /** Trusted SDK parent identity; never inferred from a file or cwd. */
+  parentSessionManager?: object;
+  /** @internal Host-owned scope shared across reload/adoption and nested runs. */
+  childApprovalScope?: ChildApprovalScope;
   /** Extra tools available to the subagent in addition to the structured output tool. */
   tools?: ToolDefinition[];
   /**
@@ -630,6 +635,8 @@ function usageFromSessionProgress(stats: SessionUsageStats, event: AgentSessionE
 }
 
 export interface AgentRunOptions<TSchemaDef extends TSchema | undefined = undefined> {
+  /** Host workflow attribution, not an approval authority selector. */
+  runId?: string;
   label?: string;
   /**
    * Display name recorded on the persisted session (session_info entry) when
@@ -816,6 +823,7 @@ export class WorkflowAgent {
    * Resource loaders shared by subagents using the same directory in this run. See
    * getSharedResourceLoader — this is the #109 memory mitigation.
    */
+  private readonly childApprovalScope: ChildApprovalScope;
   private readonly resourceLoaders = new Map<string, Promise<DefaultResourceLoader>>();
   /**
    * Emitted at most once per instance (~= once per run, see the class-level
@@ -852,6 +860,7 @@ export class WorkflowAgent {
   private readonly agentInstanceId = randomUUID();
 
   constructor(options: WorkflowAgentOptions = {}) {
+    this.childApprovalScope = options.childApprovalScope ?? new ChildApprovalScope(options.parentSessionManager);
     this.cwd = options.cwd ?? process.cwd();
     this.baseTools = options.tools ?? createCodingTools(this.cwd);
     this.excludeTools = options.excludeTools ?? [];
@@ -931,9 +940,9 @@ export class WorkflowAgent {
    * loaders are session-local: the SDK binds session actions into their runtime,
    * so sharing one would send a child's extension actions into another child.
    */
-  private getSharedResourceLoader(agentDir: string, cwd = this.cwd): Promise<DefaultResourceLoader> {
+  private getSharedResourceLoader(agentDir: string, cwd = this.cwd, guarded = false): Promise<DefaultResourceLoader> {
     const key = JSON.stringify([agentDir, cwd]);
-    const shared = this.providerMiddlewareExtensions.length === 0;
+    const shared = !guarded && this.providerMiddlewareExtensions.length === 0;
     const existing = shared ? this.resourceLoaders.get(key) : undefined;
     if (existing) {
       // LRU-by-touch: keep hot entries (base cwd) resident ahead of one-off
@@ -942,7 +951,7 @@ export class WorkflowAgent {
       this.resourceLoaders.set(key, existing);
       return existing;
     }
-    return this.buildSharedResourceLoader(agentDir, cwd, key);
+    return this.buildSharedResourceLoader(agentDir, cwd, key, guarded);
   }
 
   /**
@@ -962,8 +971,13 @@ export class WorkflowAgent {
     }
   }
 
-  private buildSharedResourceLoader(agentDir: string, cwd: string, key: string): Promise<DefaultResourceLoader> {
-    const shared = this.providerMiddlewareExtensions.length === 0;
+  private buildSharedResourceLoader(
+    agentDir: string,
+    cwd: string,
+    key: string,
+    guarded = false,
+  ): Promise<DefaultResourceLoader> {
+    const shared = !guarded && this.providerMiddlewareExtensions.length === 0;
     const pending = (async () => {
       const settingsManager = this.sessionOptions.settingsManager ?? SettingsManager.create(cwd, agentDir);
       let middlewarePaths: string[] = [];
@@ -1173,7 +1187,7 @@ export class WorkflowAgent {
     const capture: StructuredOutputCapture<any> = { called: false, value: undefined };
     // Per-call cwd (e.g. a worktree) needs coding tools bound to that directory,
     // since tools capture their cwd at construction and can't be relocated.
-    const runCwd = realpathSync(options.cwd ?? this.cwd);
+    const runCwd = realpathSync(options.cwd ?? this.sessionOptions.cwd ?? this.cwd);
     let usesBaseDirectory = false;
     try {
       usesBaseDirectory = runCwd === realpathSync(this.cwd);
@@ -1366,8 +1380,22 @@ export class WorkflowAgent {
     // `modelRuntime: undefined` — it would shadow createAgentSession's own
     // default runtime.
     const modelRuntime = runtimeOf(modelRegistry) as ModelRuntime | undefined;
+    const childId = this.agentIdFor(options, runCwd);
+    const approval = this.childApprovalScope.open(
+      {
+        childId,
+        sessionId: effectiveSessionManager.getSessionId(),
+        runId: options.runId ?? this.agentInstanceId,
+      },
+      options.signal,
+    );
+    let attached: ReturnType<NonNullable<typeof approval>["attach"]> | undefined;
     let session: Awaited<ReturnType<typeof createAgentSession>>["session"];
     try {
+      const selectedLoader =
+        this.sessionOptions.resourceLoader ?? (await this.getSharedResourceLoader(agentDir, runCwd, !!approval));
+      attached = approval?.attach(selectedLoader, effectiveSessionManager);
+      if (!approval) noteChildRuntime(selectedLoader);
       ({ session } = await createAgentSession({
         cwd: runCwd,
         agentDir,
@@ -1380,14 +1408,14 @@ export class WorkflowAgent {
         customTools,
         // Shared per-run loader with opt-in provider middleware (#109) — see
         // getSharedResourceLoader. An injected resourceLoader (tests / embedders)
-        // wins and skips the shared build entirely; the ...this.sessionOptions
-        // spread below re-applies the same injected value harmlessly.
-        resourceLoader: this.sessionOptions.resourceLoader ?? (await this.getSharedResourceLoader(agentDir, runCwd)),
+        // skips discovery but still receives mandatory approval attachment.
         // Host split (see modelRuntime above): stock pi takes modelRuntime;
         // omp's fork takes modelRegistry. Spread-cast keeps the runtime value
         // while satisfying the upstream CreateAgentSessionOptions type.
         ...(modelRuntime ? { modelRuntime } : { modelRegistry }),
         ...this.sessionOptions,
+        // Mandatory attachment wins over every injected loader.
+        resourceLoader: attached?.loader ?? selectedLoader,
         ...(options.cwd !== undefined ? { cwd: runCwd } : {}),
         // The computed AgentRegistry id must win over any injected
         // sessionOptions value: a stable embedder-supplied agentId would
@@ -1395,7 +1423,7 @@ export class WorkflowAgent {
         // omp-fork-only (absent from upstream 0.83 types this package builds
         // against); spread-cast keeps the runtime value while satisfying the
         // upstream CreateAgentSessionOptions type.
-        ...{ agentId: this.agentIdFor(options, runCwd) },
+        ...{ agentId: childId },
         // Named threads must retain their own manager even when an embedder
         // supplied a default manager for ordinary one-shot calls — the
         // sessionOptions spread above would otherwise overwrite the cached
@@ -1411,11 +1439,12 @@ export class WorkflowAgent {
         excludeTools: subagentExcludedTools(this.excludeTools, this.sessionOptions.excludeTools),
       }));
     } catch (error) {
+      approval?.close();
       if (options.thread) this.restoreThreadLeaf(sessionManager, threadLeaf);
       throw error;
     }
-    pinChildCacheRetention(session.agent);
     const disposeSession = async () => {
+      approval?.close();
       try {
         // dispose() alone does not emit shutdown; give opted-in factories a
         // chance to release session-local listeners and other resources.
@@ -1429,7 +1458,9 @@ export class WorkflowAgent {
     // Child sessions do not auto-bind a supplied ResourceLoader. Bind middleware
     // before the first provider request (also supports injected resource loaders).
     try {
+      pinChildCacheRetention(session.agent);
       await session.bindExtensions({});
+      attached?.verify();
     } catch (error) {
       await disposeSession();
       if (options.thread) this.restoreThreadLeaf(sessionManager, threadLeaf);

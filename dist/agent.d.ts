@@ -2,6 +2,7 @@ import { type CreateAgentSessionOptions, type LoadExtensionsResult, ModelRegistr
 import type { Static, TSchema } from "typebox";
 import { type AgentHistoryEntry } from "./agent-history.js";
 import { type AgentUsage } from "./agent-usage.js";
+import { ChildApprovalScope } from "./child-approval.js";
 export type { AgentUsage } from "./agent-usage.js";
 import { type ModelThinkingLevel } from "./model-spec.js";
 import { type ModelTierConfig, type RankableModel } from "./model-tier-config.js";
@@ -102,6 +103,10 @@ export declare function isProviderMiddlewareExtensionPath(extensionPath: string,
 export declare function filterProviderMiddlewareExtensions(base: LoadExtensionsResult, allowlist: readonly string[], packageSources?: ReadonlyMap<string, string>): LoadExtensionsResult;
 export interface WorkflowAgentOptions {
     cwd?: string;
+    /** Trusted SDK parent identity; never inferred from a file or cwd. */
+    parentSessionManager?: object;
+    /** @internal Host-owned scope shared across reload/adoption and nested runs. */
+    childApprovalScope?: ChildApprovalScope;
     /** Extra tools available to the subagent in addition to the structured output tool. */
     tools?: ToolDefinition[];
     /**
@@ -204,6 +209,8 @@ export declare function usageFromStats(stats: {
     cost: number;
 }): AgentUsage | undefined;
 export interface AgentRunOptions<TSchemaDef extends TSchema | undefined = undefined> {
+    /** Host workflow attribution, not an approval authority selector. */
+    runId?: string;
     label?: string;
     /**
      * Display name recorded on the persisted session (session_info entry) when
@@ -381,6 +388,7 @@ export declare class WorkflowAgent {
      * Resource loaders shared by subagents using the same directory in this run. See
      * getSharedResourceLoader — this is the #109 memory mitigation.
      */
+    private readonly childApprovalScope;
     private readonly resourceLoaders;
     /**
      * Emitted at most once per instance (~= once per run, see the class-level

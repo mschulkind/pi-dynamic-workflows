@@ -4,6 +4,7 @@
 import { EventEmitter } from "node:events";
 import { isDeepStrictEqual } from "node:util";
 import { createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
+import { ChildApprovalScope } from "./child-approval.js";
 import { MAX_AGENTS_PER_RUN } from "./config.js";
 import { emptyFleetSummary, preview, recomputeWorkflowSnapshot, } from "./display.js";
 import { isProviderUsageLimit, WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode } from "./errors.js";
@@ -128,6 +129,11 @@ export class WorkflowManager extends EventEmitter {
     providerMiddlewareExtensions;
     persistAgentSessions;
     inheritMainModel;
+    childApprovalScope = new ChildApprovalScope();
+    /** Bind actual host identity and immediately revoke children admitted before handoff. */
+    setParentSessionManager(root) {
+        this.childApprovalScope.bind(root);
+    }
     constructor(options = {}) {
         super();
         this.cwd = options.cwd ?? process.cwd();
@@ -550,6 +556,7 @@ export class WorkflowManager extends EventEmitter {
                 // Otherwise runWorkflow mints an ephemeral `run-<ts>` id and the sync
                 // path would surface a non-resumable id to the model.
                 runId: managed.runId,
+                childApprovalScope: this.childApprovalScope,
                 agent: this.agent,
                 mainModel: this.mainModel,
                 modelRegistry: this.modelRegistry,

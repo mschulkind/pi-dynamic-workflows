@@ -7,6 +7,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { ModelRegistry, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { WorkflowAgent } from "./agent.js";
 import { type AgentUsage, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
+import { ChildApprovalScope } from "./child-approval.js";
 import { MAX_AGENTS_PER_RUN } from "./config.js";
 import {
   emptyFleetSummary,
@@ -499,6 +500,13 @@ export class WorkflowManager extends EventEmitter {
   private persistAgentSessions: boolean;
   private inheritMainModel: boolean;
 
+  private readonly childApprovalScope = new ChildApprovalScope();
+
+  /** Bind actual host identity and immediately revoke children admitted before handoff. */
+  setParentSessionManager(root?: object): void {
+    this.childApprovalScope.bind(root);
+  }
+
   constructor(options: WorkflowManagerOptions = {}) {
     super();
     this.cwd = options.cwd ?? process.cwd();
@@ -950,6 +958,7 @@ export class WorkflowManager extends EventEmitter {
         // Otherwise runWorkflow mints an ephemeral `run-<ts>` id and the sync
         // path would surface a non-resumable id to the model.
         runId: managed.runId,
+        childApprovalScope: this.childApprovalScope,
         agent: this.agent,
         mainModel: this.mainModel,
         modelRegistry: this.modelRegistry,

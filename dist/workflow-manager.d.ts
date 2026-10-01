@@ -410,6 +410,9 @@ export declare class WorkflowManager extends EventEmitter {
     private providerMiddlewareExtensions?;
     private persistAgentSessions;
     private inheritMainModel;
+    private readonly childApprovalScope;
+    /** Bind actual host identity and immediately revoke children admitted before handoff. */
+    setParentSessionManager(root?: object): void;
     constructor(options?: WorkflowManagerOptions);
     /** Bind the manager to the current pi session, so new runs are tagged with it and
      * the navigator/task-panel show only this session's runs (set on session_start).

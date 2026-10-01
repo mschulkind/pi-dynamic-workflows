@@ -162,6 +162,7 @@ export default function extension(pi) {
     let usageLimitScheduler = new UsageLimitScheduler(manager);
     let disposeMixedFleet = () => { };
     pi.on("session_shutdown", (event) => {
+        manager.setParentSessionManager(undefined);
         usageLimitScheduler.dispose();
         disposeMixedFleet();
         // Always stop live sends first so a completion racing teardown cannot
@@ -279,6 +280,7 @@ export default function extension(pi) {
             ctx.ui.notify(`Paused ${pausedForMismatch} active workflow(s) that could not safely continue in this session (extension update or project switch). Resume them from /workflows when ready.`, "warning");
             pausedForMismatch = 0;
         }
+        manager.setParentSessionManager(ctx.sessionManager);
         manager.setMainModel(ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
         manager.setModelRegistry(ctx.modelRegistry);
         const active = pi.getActiveTools();
