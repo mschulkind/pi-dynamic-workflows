@@ -217,7 +217,12 @@ type TaskPanelModule = {
   _getSessionDeliveryEndpointForTests: (
     sessionId: string,
   ) => { suspended: boolean; generation: number; hasSend: boolean; hasAppend: boolean } | undefined;
-  installTaskPanel: (pi: ExtensionAPI | null, manager: unknown, ui: unknown) => void;
+  installTaskPanel: (
+    pi: ExtensionAPI | null,
+    manager: unknown,
+    ui: unknown,
+    opts?: { loadSettings?: () => { progressPanelMode?: "compact" | "detailed" } },
+  ) => void;
 };
 
 // Loaded once before all tests
@@ -2993,7 +2998,7 @@ describe("installResultDelivery", () => {
 // ─── installTaskPanel ─────────────────────────────────────────────────────────
 
 describe("installTaskPanel", () => {
-  it("keeps the old panel until FleetView acknowledges the same session", () => {
+  it("keeps the compact panel until FleetView acknowledges the same session", () => {
     const slot = Symbol.for("pi.mixed-work.fleet.v1");
     const manager = new EventEmitter() as EventEmitter & {
       getSessionId: () => string;
@@ -3009,7 +3014,7 @@ describe("installTaskPanel", () => {
         factory = fn;
       },
     };
-    mod.installTaskPanel(null, manager, ui);
+    mod.installTaskPanel(null, manager, ui, { loadSettings: () => ({ progressPanelMode: "compact" }) });
     const widget = factory?.({ requestRender() {} }, { fg: (_c: string, s: string) => s, bold: (s: string) => s });
     assert.ok(widget);
     try {
@@ -3018,6 +3023,8 @@ describe("installTaskPanel", () => {
       assert.ok(widget.render(100).length > 0, "another session must not hide this panel");
       (globalThis as Record<symbol, unknown>)[slot] = { version: 1, sessionId: "session-a", accepted: true };
       assert.deepEqual(widget.render(100), []);
+      (globalThis as Record<symbol, unknown>)[slot] = { version: 1, sessionId: "session-a", accepted: false };
+      assert.ok(widget.render(100).length > 0, "compact fallback returns when Fleet releases the session");
     } finally {
       widget.dispose();
       delete (globalThis as Record<symbol, unknown>)[slot];

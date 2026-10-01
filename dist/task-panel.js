@@ -1562,12 +1562,14 @@ export function installTaskPanel(_pi, manager, ui, opts = {}) {
         // open the navigator, the user runs /workflows (the panel takes no input).
         const comp = {
             render: (width) => {
-                if (mixedFleetAccepted(manager.getSessionId?.()))
-                    return [];
                 const s = settings();
+                // Fleet accepts summary rows, not this panel's phases, models, usage,
+                // and agent detail. Keep detailed mode stable across its UI lifecycle.
                 if ((s.progressPanelMode ?? "detailed") === "detailed") {
                     return renderPanelDetailed(manager, theme, width, clampMaxAgents(s.progressPanelMaxAgents), Date.now());
                 }
+                if (mixedFleetAccepted(manager.getSessionId?.()))
+                    return [];
                 return renderPanel(manager, theme, width);
             },
             invalidate: () => { },
