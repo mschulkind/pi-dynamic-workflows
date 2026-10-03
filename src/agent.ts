@@ -31,6 +31,8 @@ import {
   type RecordingHealthReporter,
   type RequestIdentity,
   type RequestSink,
+  reasoningLevel,
+  subscribeCoreProducer,
 } from "./request-recording.js";
 
 export type { AgentUsage } from "./agent-usage.js";
@@ -1327,6 +1329,7 @@ export class WorkflowAgent {
     const isExplicitRequest = pinAfterPolicy;
     let resolvedModel: Model<any> | undefined;
     let resolvedThinkingLevel: CreateAgentSessionOptions["thinkingLevel"] | undefined;
+    let selectedModelThinkingSuffix: ModelThinkingLevel | undefined;
     if (modelSpec) {
       const resolved = resolveModelSpecWithThinking(modelSpec, modelRegistry, {
         preferredProvider: this.mainModel?.split("/", 1)[0],
@@ -1357,6 +1360,7 @@ export class WorkflowAgent {
         }
       } else {
         resolvedModel = resolved.model;
+        selectedModelThinkingSuffix = resolved.thinkingLevel;
         resolvedThinkingLevel = resolved.thinkingLevel ?? options.thinking;
         boundModelSpec = resolved.resolvedSpec ?? canonicalModelSpec(resolved.model);
         options.onModelResolved?.(
@@ -1551,18 +1555,39 @@ export class WorkflowAgent {
     const requestSink = options.onRequestObservation;
     const requestObserver =
       requestIdentity && requestSink
-        ? initializeRequestObserver(
-            () =>
-              createRequestObserver(
-                { ...requestIdentity, sessionId: effectiveSessionManager.getSessionId() },
-                session.model,
-                requestSink,
-                coreRecordingActivation(this.sessionOptions.modelRuntime ?? modelRuntime),
-                options.onRequestRecordingHealth,
-              ),
-            options.onRequestRecordingHealth,
-          )
+        ? initializeRequestObserver(() => {
+            const selectedThinking = reasoningLevel(resolvedThinkingLevel ?? this.sessionOptions.thinkingLevel);
+            const sessionThinking = reasoningLevel(session.thinkingLevel);
+            const requestedSuffix = options.model
+              ? resolveModelSpecWithThinking(options.model, modelRegistry, {
+                  preferredProvider: this.mainModel?.split("/", 1)[0],
+                }).thinkingLevel
+              : undefined;
+            return createRequestObserver(
+              { ...requestIdentity, sessionId: effectiveSessionManager.getSessionId() },
+              session.model,
+              requestSink,
+              coreRecordingActivation(session.modelRuntime),
+              options.onRequestRecordingHealth,
+              {
+                requestedModelSuffix: requestedSuffix ?? null,
+                requestedExplicit: options.thinking ?? null,
+                selected: selectedThinking,
+                selectionSource: selectedModelThinkingSuffix
+                  ? "model_suffix"
+                  : options.thinking !== undefined
+                    ? "explicit_thinking"
+                    : this.sessionOptions.thinkingLevel !== undefined
+                      ? "session_options"
+                      : "session_default",
+                resolvedSession: sessionThinking,
+                clamped:
+                  selectedThinking !== null && sessionThinking !== null ? selectedThinking !== sessionThinking : null,
+              },
+            );
+          }, options.onRequestRecordingHealth)
         : undefined;
+    let removeCoreProducerObserver: (() => void) | undefined;
     let removeRequestInvocationObserver: (() => void) | undefined;
     const emitSessionProgress = (event: AgentSessionEvent) => {
       maybeEmitHistory();
@@ -1607,6 +1632,7 @@ export class WorkflowAgent {
       });
 
       if (requestObserver) {
+        removeCoreProducerObserver = subscribeCoreProducer(session.modelRuntime, requestObserver);
         removeRequestInvocationObserver = observeRequestInvocations(session.agent, requestObserver);
       }
       await session.prompt(this.buildPrompt(prompt, options as AgentRunOptions<any>, Boolean(options.schema)));
@@ -1655,6 +1681,7 @@ export class WorkflowAgent {
     } finally {
       removeAbortListener?.();
       removeHistoryListener?.();
+      removeCoreProducerObserver?.();
       removeRequestInvocationObserver?.();
       requestObserver?.close(options.signal?.aborted ?? false);
       removeTurnListener?.();

@@ -69,7 +69,7 @@ Retention/delete follows existing run policy (default 300 terminal runs, with ru
 
 Schema version 1 records are metadata evidence, not another cost ledger. Request observations use `recordKind: workflow_request_observation` / `accountingRole: request_evidence`; replay uses `workflow_request_replay` / `non_request_provenance`. Field definitions and exported TypeScript types live in the [recorder](../../src/request-recording.ts).
 
-For downstream discovery, enumerate runs using the existing persistence API or directory above, hydrate the authoritative head, then read `requestObservations`. Use root/frame/call/work/execution/attempt/session identity to attribute work. Join phases by `observationId`; use nonnull `sdkInvocationId` to group invocation evidence. Do not add the enclosing run or agent usage totals again. Replay references identify historical work, not evidence of a new paid request. Treat absent coverage as unknown and honor retention/committed-head boundaries. This is a storage handoff only, not scanner implementation or scanner coverage.
+For downstream discovery, enumerate runs using the existing persistence API or directory above, hydrate the authoritative head, then read `requestObservations`. Use root/frame/call/work/execution/attempt/session identity to attribute work. Join phases by `observationId`; use `observerInvocationId` for local wrapper grouping in new records. Exact Core joins require the public dispatch discriminator described in the [producer contract](../capture-contract/implementation.md). Do not add the enclosing run or agent usage totals again. Replay references identify historical work, not evidence of a new paid request. Treat absent coverage as unknown and honor retention/committed-head boundaries. This is a storage handoff only, not scanner implementation or scanner coverage.
 
 ```ts
 import { createRunPersistence } from "@quintinshaw/pi-dynamic-workflows";
@@ -82,7 +82,7 @@ const evidence = persistence.load(runId)?.requestObservations ?? {};
 | Dimension | Retained | Not available here |
 | :--- | :--- | :--- |
 | Storage | Committed start/close records, replay provenance | Guaranteed writes after observer/filesystem failure |
-| Identity | Run/frame/call/work/execution/attempt/session/invocation/observation | SDK session entry ID, provider request ID, exact core logical request ID |
+| Identity | Run/frame/call/work/execution/attempt/session/invocation/observation | SDK session entry ID and provider request ID; Core IDs without a public dispatch event |
 | Model | Requested provider/model at the public invocation; assistant-message model; `responseModel` as `returnedModel` when supplied | Actual hostname; returned model when absent from SDK evidence |
 | Usage | Finite nonnegative allowlisted normalized input/output/cache/reasoning/total counts | Safe original provider counts, provider-reporting provenance |
 | Timing | UTC start paired with process-clock UUID and monotonic start; content/reasoning/answer/last-content/end/close offsets | Dispatch/wire attempts, server decode latency, historical missing observations |
@@ -95,13 +95,18 @@ No new record retains text, tool arguments, reasoning content/signatures, arbitr
 
 ## Core transport inheritance
 
-The development dependency SDK is `0.85.1`; the installed CLI fork SDK is `0.99.1`. Neither exposes the new public performance-recorder health interface, so child records on those versions report `activation: unsupported`. The built fork SDK is `1.0.0` and exposes that interface: probes verified disabled and explicitly enabled states. `PI_API_PERFORMANCE_DIR` is unset in the parent process. The new core recorder is **not active in the installed CLI**.
+The [producer capture contract](../capture-contract/implementation.md) supersedes
+this section's earlier time-window-only implementation. Workflow consumers now
+namespace-detect the finalized version-1 public Core capability on the actual
+child session runtime. Final Core logical and SDK invocation IDs appear only
+after its dispatch event; unsupported SDKs retain null exact IDs and
+`session_time_window` fallback. Provisional starts are never rewritten.
 
-On a core build exposing public `getPerformanceRecordingHealth`, children inherit the existing host runtime through the established model-registry/runtime wiring (an injected child runtime takes precedence). Health indicates enabled/disabled/unsupported/unobserved; enabled is not proof that a particular route produced a durable transport record. No private SDK modules or copied provider implementation are used.
-
-The evolving core SDK supplies child session and operation/logical-request correlation itself. This change does not replace it or activate a runtime after construction. Core opt-in uses `PI_API_PERFORMANCE_DIR` when the runtime is created; transport evidence resides separately in that configured directory, under the core recorder's own schema and retention. This change neither duplicates nor flushes those records; the runtime owns its persistence.
-
-Workflow records link only by child session plus UTC observation window. That is **partial linkage**, especially for successive turns on a named thread; exact request IDs are null. The inspected public contract offers no shared observer that exposes those generated IDs here. SDK invocation/message windows are not wire dispatch windows, so correlation can remain ambiguous. Unsupported summary/routes and recorder failures are not invented as hidden attempts. Enabled-core health inheritance passed local faux-provider probes. Exact transport-record linkage remains unverified; these probes do not deploy the new core or establish a shared request ID.
+The capability does not prove recorder activation or physical attempts. Capture
+reads public transport status but never enables, reconfigures, or flushes Core in
+production. Core owns jail-default private-directory activation and explicit
+opt-out precedence. [Producer QA](../capture-contract/qa.md) distinguishes fresh
+local source-runtime traffic evidence from installed and actually loaded code.
 
 ## Explicit exclusions
 

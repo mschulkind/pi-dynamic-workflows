@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import * as CoreSDK from "@earendil-works/pi-coding-agent";
 
 export interface RequestIdentity {
   rootRunId: string;
@@ -24,7 +25,7 @@ export interface RequestObservation extends RequestIdentity {
   recordId: string;
   observationId: string;
   phase: "started" | "closed";
-  granularity: "sdk_stream_invocation" | "sdk_assistant_message";
+  granularity: "sdk_stream_invocation" | "sdk_assistant_message" | "core_provider_dispatch";
   sdkInvocationId: string | null;
   assistantMessageStarts: number;
   retryOfObservationId: string | null;
@@ -35,7 +36,21 @@ export interface RequestObservation extends RequestIdentity {
   returnedModel: string | null;
   actualApiHostname: null;
   sessionEntryId: null;
-  logicalRequestId: null;
+  logicalRequestId: string | null;
+  /** Additive v1 fields: absent in historical journals. */
+  observerInvocationId?: string | null;
+  reasoning?: ReasoningObservation;
+  coreDispatch?: {
+    boundary: "provider_dispatch";
+    observedOffsetMs: number;
+    operationId: string | null;
+    purpose: string;
+    orchestrationRetry: number | null;
+    api: string | null;
+    provider: string | null;
+    model: string | null;
+    transportCoverage: "supported" | "unsupported";
+  };
   outcome: "success" | "error" | "aborted" | "unknown";
   stopReason: string | null;
   usage: Record<(typeof counts)[number], Count>;
@@ -45,7 +60,7 @@ export interface RequestObservation extends RequestIdentity {
     processClockId: string;
     startedAtUtc: string;
     startedAtMonotonicMs: number;
-    startBoundary: "sdk_stream_invocation" | "sdk_message_start";
+    startBoundary: "sdk_stream_invocation" | "sdk_message_start" | "provider_dispatch";
     firstContentOffsetMs: number | null;
     firstReasoningOffsetMs: number | null;
     firstVisibleAnswerOffsetMs: number | null;
@@ -54,7 +69,13 @@ export interface RequestObservation extends RequestIdentity {
     observationClosedOffsetMs: number | null;
     completionBoundary: "sdk_message_end" | "sdk_stream_result" | "observer_close" | null;
   };
-  transportLink: { granularity: "session_time_window"; sessionId: string; activation: CoreRecordingActivation };
+  transportLink: {
+    granularity: "session_time_window" | "core_logical_request";
+    sessionId: string;
+    activation: CoreRecordingActivation;
+    capabilityVersion?: 1 | null;
+    wireAttemptId?: null;
+  };
   coverage: {
     hiddenTransportAttempts: "unavailable";
     compactionRequests: "unavailable";
@@ -78,10 +99,78 @@ export interface RequestReplay {
 export type WorkflowRequestEvidence = RequestObservation | RequestReplay;
 export type RequestSink = (record: WorkflowRequestEvidence) => unknown;
 export type CoreRecordingActivation = "enabled" | "disabled" | "unsupported" | "not_observed";
+export interface ReasoningObservation {
+  requestedModelSuffix: string | null;
+  requestedExplicit: string | null;
+  selected: string | null;
+  selectionSource: "model_suffix" | "explicit_thinking" | "session_options" | "session_default" | "unknown";
+  resolvedSession: string | null;
+  clamped: boolean | null;
+  sdkInvocation: string | null;
+}
+export function reasoningLevel(value: unknown): string | null {
+  return typeof value === "string" && ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value)
+    ? value
+    : null;
+}
+export interface CoreDispatch {
+  schemaVersion: 1;
+  boundary: "provider_dispatch";
+  sdkInvocationId: string;
+  logicalRequestId: string;
+  sessionId: string | null;
+  operationId: string | null;
+  purpose: string;
+  orchestrationRetry: number | null;
+  api: string | null;
+  provider?: string | null;
+  model?: string | null;
+  transportCoverage: "supported" | "unsupported";
+}
+/** Namespace lookup lets old public SDK exports load without the new symbol. */
+export function subscribeCoreProducer(
+  runtime: unknown,
+  observer: ReturnType<typeof createRequestObserver>,
+): () => void {
+  try {
+    const helper = (
+      CoreSDK as unknown as {
+        getProducerObservationCapability?: (
+          runtime: unknown,
+        ) => { version: number; subscribe(callback: (event: CoreDispatch) => void): () => void } | null;
+      }
+    ).getProducerObservationCapability;
+    const capability = typeof helper === "function" ? helper(runtime) : null;
+    if (capability?.version !== 1) return () => {};
+    const unsubscribe = capability.subscribe((event) => observer.dispatch(event));
+    observer.capabilityReady();
+    return () => {
+      try {
+        unsubscribe();
+      } catch {
+        observer.callbackFailure();
+      }
+    };
+  } catch {
+    observer.callbackFailure();
+    return () => {};
+  }
+}
 /** Feature-detect only a public runtime health method, never enable a recorder. */
 export function coreRecordingActivation(runtime: unknown): CoreRecordingActivation {
   try {
-    const candidate = runtime as { getPerformanceRecordingHealth?: () => unknown } | undefined;
+    const candidate = runtime as
+      | {
+          getTransportRecordingStatus?: () => { capabilityVersion: number; enabled: boolean };
+          getPerformanceRecordingHealth?: () => unknown;
+        }
+      | undefined;
+    if (typeof candidate?.getTransportRecordingStatus === "function") {
+      const status = candidate.getTransportRecordingStatus();
+      if (status?.capabilityVersion === 1 && typeof status.enabled === "boolean")
+        return status.enabled ? "enabled" : "disabled";
+      return "unsupported";
+    }
     if (typeof candidate?.getPerformanceRecordingHealth !== "function") return "unsupported";
     return candidate.getPerformanceRecordingHealth() ? "enabled" : "disabled";
   } catch {
@@ -156,13 +245,17 @@ export function createRequestObserver(
   sink: RequestSink,
   activation: CoreRecordingActivation = "not_observed",
   health?: RecordingHealthReporter,
+  reasoning?: Omit<ReasoningObservation, "sdkInvocation">,
 ) {
+  let capabilityVersion: 1 | null = null;
   let active: RequestObservation | undefined;
   let invocation: { id: string; utc: string; monotonicMs: number; model: { provider: string; id: string } } | undefined;
+  const auxiliary: RequestObservation[] = [];
+  let invocationReasoning: string | null = null;
   let lastId: string | null = null;
   let retryOf: string | null = null;
   const elapsed = () => Math.max(0, performance.now() - (active?.timing.startedAtMonotonicMs ?? performance.now()));
-  const close = (aborted: boolean) => {
+  const closeActive = (aborted: boolean) => {
     if (!active) return;
     active.phase = "closed";
     active.recordId = randomUUID();
@@ -204,7 +297,7 @@ export function createRequestObserver(
     active.timing.completedOffsetMs = elapsed();
     active.timing.completionBoundary = boundary;
   };
-  const start = () => {
+  const start = (emit = true) => {
     active = {
       rootRunId: identity.rootRunId,
       frameRunId: identity.frameRunId,
@@ -222,7 +315,25 @@ export function createRequestObserver(
       observationId: randomUUID(),
       phase: "started",
       granularity: invocation ? "sdk_stream_invocation" : "sdk_assistant_message",
-      sdkInvocationId: invocation?.id ?? null,
+      sdkInvocationId: null,
+      observerInvocationId: invocation?.id ?? null,
+      reasoning: {
+        requestedModelSuffix: reasoningLevel(reasoning?.requestedModelSuffix),
+        requestedExplicit: reasoningLevel(reasoning?.requestedExplicit),
+        selected: reasoningLevel(reasoning?.selected),
+        selectionSource: [
+          "model_suffix",
+          "explicit_thinking",
+          "session_options",
+          "session_default",
+          "unknown",
+        ].includes(reasoning?.selectionSource ?? "")
+          ? (reasoning?.selectionSource ?? "unknown")
+          : "unknown",
+        resolvedSession: reasoningLevel(reasoning?.resolvedSession),
+        clamped: typeof reasoning?.clamped === "boolean" ? reasoning.clamped : null,
+        sdkInvocation: invocationReasoning,
+      },
       assistantMessageStarts: 0,
       retryOfObservationId: retryOf,
       retryRelation: retryOf ? "observed" : "unknown",
@@ -253,7 +364,13 @@ export function createRequestObserver(
         observationClosedOffsetMs: null,
         completionBoundary: null,
       },
-      transportLink: { granularity: "session_time_window", sessionId: identity.sessionId, activation },
+      transportLink: {
+        granularity: "session_time_window",
+        sessionId: identity.sessionId,
+        activation,
+        capabilityVersion,
+        wireAttemptId: null,
+      },
       coverage: {
         hiddenTransportAttempts: "unavailable",
         compactionRequests: "unavailable",
@@ -261,10 +378,120 @@ export function createRequestObserver(
       },
     };
     retryOf = null;
-    emitRequestObservation(sink, active, health);
+    if (emit) emitRequestObservation(sink, active, health);
+    return active;
   };
   return {
-    close,
+    close(aborted: boolean) {
+      closeActive(aborted);
+      for (const record of auxiliary.splice(0)) {
+        record.phase = "closed";
+        record.recordId = randomUUID();
+        record.timing.observationClosedOffsetMs = Math.max(0, performance.now() - record.timing.startedAtMonotonicMs);
+        record.timing.completionBoundary = "observer_close";
+        emitRequestObservation(sink, record, health);
+      }
+    },
+    capabilityReady() {
+      capabilityVersion = 1;
+    },
+    dispatch(event: CoreDispatch) {
+      try {
+        if (
+          event.schemaVersion !== 1 ||
+          event.boundary !== "provider_dispatch" ||
+          event.sessionId !== identity.sessionId
+        )
+          return;
+        const isAuxiliary = !["assistant", "unknown"].includes(event.purpose);
+        // An owning-session dispatch is authoritative, not a time-window guess.
+        // Auxiliary dispatches must never overwrite a pending assistant invocation.
+        const id = (value: unknown) =>
+          typeof value === "string" &&
+          value.length > 0 &&
+          value.length <= 256 &&
+          /^[a-zA-Z0-9_./:-]+$/.test(value) &&
+          !value.includes("//")
+            ? value
+            : null;
+        const logical = id(event.logicalRequestId);
+        const sdk = id(event.sdkInvocationId);
+        if (!logical || !sdk) return;
+        if (!isAuxiliary && active?.coreDispatch) closeActive(false);
+        const purpose = [
+          "assistant",
+          "compaction",
+          "branch_summary",
+          "bug_report_summary",
+          "cache_warm",
+          "auxiliary",
+          "unknown",
+        ].includes(event.purpose)
+          ? event.purpose
+          : "unknown";
+        const previous = active;
+        if (isAuxiliary) active = undefined;
+        if (!active) {
+          // Build without emitting a provisional start; this boundary already has final IDs.
+          active = start(false);
+          active.granularity = "core_provider_dispatch";
+          active.timing.startBoundary = "provider_dispatch";
+          active.timing.startedAtUtc = new Date().toISOString();
+          active.timing.startedAtMonotonicMs = performance.now();
+          if (isAuxiliary) {
+            active.observerInvocationId = null;
+            active.requestedProvider = null;
+            active.requestedModel = null;
+            active.reasoning = undefined;
+          }
+        }
+        if (!active) return;
+        active.logicalRequestId = logical;
+        active.sdkInvocationId = sdk;
+        active.coreDispatch = {
+          boundary: "provider_dispatch",
+          observedOffsetMs: elapsed(),
+          operationId: id(event.operationId),
+          purpose,
+          orchestrationRetry:
+            typeof event.orchestrationRetry === "number" &&
+            Number.isSafeInteger(event.orchestrationRetry) &&
+            event.orchestrationRetry >= 0
+              ? event.orchestrationRetry
+              : null,
+          api: modelName(event.api),
+          provider: modelName(event.provider),
+          model: modelName(event.model),
+          transportCoverage: event.transportCoverage === "supported" ? "supported" : "unsupported",
+        };
+        active.transportLink = {
+          granularity: "core_logical_request",
+          sessionId: identity.sessionId,
+          activation,
+          capabilityVersion: 1,
+          wireAttemptId: null,
+        };
+        if (isAuxiliary || !previous) emitRequestObservation(sink, active, health);
+        if (isAuxiliary) {
+          auxiliary.push(active);
+          active = previous;
+          if (auxiliary.length > 64) {
+            const record = auxiliary.shift();
+            if (!record) return;
+            record.phase = "closed";
+            record.recordId = randomUUID();
+            record.timing.completionBoundary = "observer_close";
+            record.timing.observationClosedOffsetMs = Math.max(
+              0,
+              performance.now() - record.timing.startedAtMonotonicMs,
+            );
+            emitRequestObservation(sink, record, health);
+          }
+        }
+      } catch {
+        reportRecordingHealth(health, "observer_callback_failed");
+      }
+    },
     callbackFailure() {
       reportRecordingHealth(health, "observer_callback_failed");
     },
@@ -274,9 +501,10 @@ export function createRequestObserver(
     hookFallback() {
       reportRecordingHealth(health, "message_observer_fallback");
     },
-    beginInvocation(requestedModel: { provider: string; id: string }) {
+    beginInvocation(requestedModel: { provider: string; id: string }, options?: { reasoning?: unknown }) {
       try {
-        close(false);
+        closeActive(false);
+        invocationReasoning = reasoningLevel(options?.reasoning);
         invocation = {
           id: randomUUID(),
           utc: new Date().toISOString(),
@@ -292,14 +520,14 @@ export function createRequestObserver(
     },
     streamResult(id: string, message: AssistantMessage) {
       try {
-        if (active?.sdkInvocationId === id) completed(message, "sdk_stream_result");
+        if (active?.observerInvocationId === id) completed(message, "sdk_stream_result");
       } catch {
         reportRecordingHealth(health, "observer_callback_failed");
       }
     },
     streamFailure(id: string) {
       try {
-        if (active?.sdkInvocationId === id) active.outcome = "error";
+        if (active?.observerInvocationId === id) active.outcome = "error";
       } catch {
         reportRecordingHealth(health, "observer_callback_failed");
       }
@@ -311,8 +539,8 @@ export function createRequestObserver(
           return;
         }
         if (event.type === "message_start" && event.message.role === "assistant") {
-          if (!active || !invocation) {
-            close(false);
+          if (!active || (!invocation && !active.coreDispatch)) {
+            closeActive(false);
             start();
           }
           if (active) active.assistantMessageStarts++;
@@ -330,7 +558,7 @@ export function createRequestObserver(
           }
         } else if (event.type === "message_end" && event.message.role === "assistant" && active) {
           completed(event.message, "sdk_message_end");
-          close(false);
+          closeActive(false);
         }
       } catch {
         reportRecordingHealth(health, "observer_callback_failed");
@@ -350,7 +578,7 @@ function wrapRequestInvocations(
   const original = agent.streamFunction;
   if (typeof original !== "function") throw new Error("Public invocation hook unavailable");
   const wrapped: typeof original = function (this: unknown, ...args) {
-    const id = observer.beginInvocation(args[0]);
+    const id = observer.beginInvocation(args[0], args[2]);
     try {
       const stream = original.apply(this, args);
       if (id) {

@@ -81,6 +81,7 @@ export type {
 export { getPreSpawnModelResolver, setPreSpawnModelResolver } from "./pre-spawn-model.js";
 export type {
   CoreRecordingActivation,
+  ReasoningObservation,
   RecordingHealthReason,
   RecordingHealthReporter,
   RequestIdentity,

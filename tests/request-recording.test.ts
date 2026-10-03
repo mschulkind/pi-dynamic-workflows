@@ -281,6 +281,17 @@ test("real SDK retries retain request usage in optional sessions, while compact 
     const closed = records.filter((r) => r.phase === "closed");
     assert.equal(closed.length, 2);
     assert.equal(closed[0].outcome, "error");
+    if (closed[0].coreDispatch) {
+      assert.equal(closed[0].logicalRequestId, closed[1].logicalRequestId);
+      assert.notEqual(closed[0].sdkInvocationId, closed[1].sdkInvocationId);
+      assert.deepEqual(
+        closed.map((record) => record.coreDispatch.orchestrationRetry),
+        [0, 1],
+      );
+    } else {
+      assert.equal(closed[0].logicalRequestId, null);
+      assert.equal(closed[0].sdkInvocationId, null);
+    }
     assert.equal(closed[1].retryOfObservationId, closed[0].observationId);
     assert.equal(JSON.stringify(records).includes("SECRET"), false);
     assert.ok(sessionFile);
@@ -538,8 +549,8 @@ test("one interrupted real SDK stream invocation remains one request despite syn
     }
     const closed = records.filter((r) => r.phase === "closed");
     assert.equal(invocations, 1);
-    assert.ok(closed.every((r) => typeof r.sdkInvocationId === "string"));
-    assert.equal(new Set(closed.map((r) => r.sdkInvocationId)).size, 1);
+    assert.ok(closed.every((r) => typeof r.observerInvocationId === "string"));
+    assert.equal(new Set(closed.map((r) => r.observerInvocationId)).size, 1);
     assert.equal(closed.length, 1);
     assert.equal(closed[0].assistantMessageStarts, 2);
     assert.equal(closed[0].outcome, "error");

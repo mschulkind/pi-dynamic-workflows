@@ -41,20 +41,37 @@ test("separate thinking, suffix, and policy precedence reach actual SDK provider
           },
         ],
       });
-      core.setResponses(Array.from({ length: 3 }, () => fauxAssistantMessage("ok", { stopReason: "stop" })));
+      core.setResponses(Array.from({ length: 4 }, () => fauxAssistantMessage("ok", { stopReason: "stop" })));
       const agent = new WorkflowAgent({ cwd: root, modelRegistry: new ModelRegistry(runtime) });
       const selected: string[] = [];
+      const records: any[] = [];
+      const recording = {
+        requestIdentity: {
+          rootRunId: "r",
+          frameRunId: "r",
+          executionId: "e",
+          callId: "c",
+          stableWorkId: "w",
+          childAttemptId: "a",
+          childAttemptOrdinal: 1,
+          sessionId: "replaced",
+        },
+        onRequestObservation: (record: unknown) => records.push(record),
+      };
       await agent.run("task", {
+        ...recording,
         model: `${provider}/${modelId}`,
         thinking: "low",
         onModelResolved: (value) => selected.push(value),
       });
       await agent.run("task", {
+        ...recording,
         model: `${provider}/${modelId}:high`,
         thinking: "low",
         onModelResolved: (value) => selected.push(value),
       });
       await agent.run("task", {
+        ...recording,
         model: `${provider}/${modelId}`,
         thinking: "high",
         onModelResolved: (value) => selected.push(value),
@@ -63,15 +80,44 @@ test("separate thinking, suffix, and policy precedence reach actual SDK provider
           return { action: "use", model: `${provider}/${modelId}:low` };
         },
       });
+      await agent.run("task", {
+        ...recording,
+        model: `${provider}/Thinking:high`,
+        thinking: "low",
+        onModelResolved: (value) => selected.push(value),
+      });
       assert.deepEqual(requests, [
         { model: modelId, reasoning: "low" },
         { model: modelId, reasoning: "high" },
         { model: modelId, reasoning: "low" },
+        { model: modelId, reasoning: "high" },
       ]);
+      const closed = records.filter((record) => record.phase === "closed");
+      assert.deepEqual(
+        closed.map((record) => record.reasoning.requestedModelSuffix),
+        [null, "high", null, "high"],
+      );
+      assert.deepEqual(
+        closed.map((record) => record.reasoning.requestedExplicit),
+        ["low", "low", "high", "low"],
+      );
+      assert.deepEqual(
+        closed.map((record) => record.reasoning.selected),
+        ["low", "high", "low", "high"],
+      );
+      assert.deepEqual(
+        closed.map((record) => record.reasoning.resolvedSession),
+        ["low", "high", "low", "high"],
+      );
+      assert.deepEqual(
+        closed.map((record) => record.reasoning.sdkInvocation),
+        ["low", "high", "low", "high"],
+      );
       assert.deepEqual(selected, [
         `${provider}/${modelId}:low`,
         `${provider}/${modelId}:high`,
         `${provider}/${modelId}:low`,
+        `${provider}/${modelId}:high`,
       ]);
     });
   } finally {

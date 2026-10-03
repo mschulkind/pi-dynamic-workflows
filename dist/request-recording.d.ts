@@ -23,7 +23,7 @@ export interface RequestObservation extends RequestIdentity {
     recordId: string;
     observationId: string;
     phase: "started" | "closed";
-    granularity: "sdk_stream_invocation" | "sdk_assistant_message";
+    granularity: "sdk_stream_invocation" | "sdk_assistant_message" | "core_provider_dispatch";
     sdkInvocationId: string | null;
     assistantMessageStarts: number;
     retryOfObservationId: string | null;
@@ -34,7 +34,21 @@ export interface RequestObservation extends RequestIdentity {
     returnedModel: string | null;
     actualApiHostname: null;
     sessionEntryId: null;
-    logicalRequestId: null;
+    logicalRequestId: string | null;
+    /** Additive v1 fields: absent in historical journals. */
+    observerInvocationId?: string | null;
+    reasoning?: ReasoningObservation;
+    coreDispatch?: {
+        boundary: "provider_dispatch";
+        observedOffsetMs: number;
+        operationId: string | null;
+        purpose: string;
+        orchestrationRetry: number | null;
+        api: string | null;
+        provider: string | null;
+        model: string | null;
+        transportCoverage: "supported" | "unsupported";
+    };
     outcome: "success" | "error" | "aborted" | "unknown";
     stopReason: string | null;
     usage: Record<(typeof counts)[number], Count>;
@@ -44,7 +58,7 @@ export interface RequestObservation extends RequestIdentity {
         processClockId: string;
         startedAtUtc: string;
         startedAtMonotonicMs: number;
-        startBoundary: "sdk_stream_invocation" | "sdk_message_start";
+        startBoundary: "sdk_stream_invocation" | "sdk_message_start" | "provider_dispatch";
         firstContentOffsetMs: number | null;
         firstReasoningOffsetMs: number | null;
         firstVisibleAnswerOffsetMs: number | null;
@@ -54,9 +68,11 @@ export interface RequestObservation extends RequestIdentity {
         completionBoundary: "sdk_message_end" | "sdk_stream_result" | "observer_close" | null;
     };
     transportLink: {
-        granularity: "session_time_window";
+        granularity: "session_time_window" | "core_logical_request";
         sessionId: string;
         activation: CoreRecordingActivation;
+        capabilityVersion?: 1 | null;
+        wireAttemptId?: null;
     };
     coverage: {
         hiddenTransportAttempts: "unavailable";
@@ -85,6 +101,32 @@ export interface RequestReplay {
 export type WorkflowRequestEvidence = RequestObservation | RequestReplay;
 export type RequestSink = (record: WorkflowRequestEvidence) => unknown;
 export type CoreRecordingActivation = "enabled" | "disabled" | "unsupported" | "not_observed";
+export interface ReasoningObservation {
+    requestedModelSuffix: string | null;
+    requestedExplicit: string | null;
+    selected: string | null;
+    selectionSource: "model_suffix" | "explicit_thinking" | "session_options" | "session_default" | "unknown";
+    resolvedSession: string | null;
+    clamped: boolean | null;
+    sdkInvocation: string | null;
+}
+export declare function reasoningLevel(value: unknown): string | null;
+export interface CoreDispatch {
+    schemaVersion: 1;
+    boundary: "provider_dispatch";
+    sdkInvocationId: string;
+    logicalRequestId: string;
+    sessionId: string | null;
+    operationId: string | null;
+    purpose: string;
+    orchestrationRetry: number | null;
+    api: string | null;
+    provider?: string | null;
+    model?: string | null;
+    transportCoverage: "supported" | "unsupported";
+}
+/** Namespace lookup lets old public SDK exports load without the new symbol. */
+export declare function subscribeCoreProducer(runtime: unknown, observer: ReturnType<typeof createRequestObserver>): () => void;
 /** Feature-detect only a public runtime health method, never enable a recorder. */
 export declare function coreRecordingActivation(runtime: unknown): CoreRecordingActivation;
 /** Closed vocabulary only; these diagnostics are local logs, never request payloads. */
@@ -99,14 +141,18 @@ export declare function emitRequestObservation(sink: RequestSink | undefined, re
 export declare function createRequestObserver(identity: RequestIdentity, model: {
     provider: string;
     id: string;
-} | undefined, sink: RequestSink, activation?: CoreRecordingActivation, health?: RecordingHealthReporter): {
-    close: (aborted: boolean) => void;
+} | undefined, sink: RequestSink, activation?: CoreRecordingActivation, health?: RecordingHealthReporter, reasoning?: Omit<ReasoningObservation, "sdkInvocation">): {
+    close(aborted: boolean): void;
+    capabilityReady(): void;
+    dispatch(event: CoreDispatch): void;
     callbackFailure(): void;
     hookReady(): void;
     hookFallback(): void;
     beginInvocation(requestedModel: {
         provider: string;
         id: string;
+    }, options?: {
+        reasoning?: unknown;
     }): string | undefined;
     streamResult(id: string, message: AssistantMessage): void;
     streamFailure(id: string): void;

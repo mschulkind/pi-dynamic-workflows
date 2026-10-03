@@ -3,11 +3,11 @@
 // fall through the host's prefix aliases as invalid file-system paths.
 const host = await import("@earendil-works/pi-coding-agent");
 const extension = await import(
-  "../dist/pi-extension.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7"
+  "../dist/pi-extension.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3"
 );
 // Every internal compiled dependency edge has this same build query.
 // Stamped with the complete graph, not inferred from later disk/git state.
-const expectedBuildIdentity = "sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+const expectedBuildIdentity = "sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
 if (extension.WORKFLOW_RUNTIME_BUILD_IDENTITY !== expectedBuildIdentity) {
   extension.rejectLoadedWorkflowRuntime?.();
   throw new Error(
