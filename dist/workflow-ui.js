@@ -14,10 +14,10 @@
  */
 import { getLanguageFromPath, getMarkdownTheme, renderDiff, } from "@earendil-works/pi-coding-agent";
 import { Markdown, parseKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { runSummary } from "./run-record-store.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { isSafeSavedWorkflowName, savedWorkflowRevision, } from "./workflow-saved.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { runDetail, runDetailIsCurrent, runPreviewIdentity, runSummary, } from "./run-record-store.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { isSafeSavedWorkflowName, savedWorkflowRevision, } from "./workflow-saved.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
 const STATUS_ICON = {
     pending: "·",
     queued: "·",
@@ -155,10 +155,9 @@ export class NavigatorModel {
             this.frameRuns = this.manager.listRuns();
         return this.frameRuns;
     }
-    // Rehydrated persisted snapshots, keyed by the parsed record OBJECT
-    // (audit2 #25): avoid re-stringifying every agent's full result when
-    // browsing the same unchanged persisted record in subsequent frames.
-    // A fresh disk parse yields a new object, so invalidation is automatic.
+    // Keep one converted snapshot by private parsed-head revision, not mutable
+    // caller-visible preview identity. Defensive list copies share that token;
+    // a fresh disk parse produces a new token and invalidates this selection.
     rehydratedSnapshot;
     snapshot(runId) {
         if (this.frameDepth > 0 && this.frameSnapshots.has(runId))
@@ -170,10 +169,21 @@ export class NavigatorModel {
                 const p = this.persistedRuns().find((r) => r.runId === runId);
                 if (!p)
                     return undefined;
-                let cached = this.rehydratedSnapshot?.record === p ? this.rehydratedSnapshot.value : undefined;
+                let cached = this.rehydratedSnapshot?.record === runPreviewIdentity(p) && runDetailIsCurrent(p)
+                    ? this.rehydratedSnapshot.value
+                    : undefined;
                 if (!cached) {
-                    cached = { snapshot: persistedToSnapshot(p), status: p.status };
-                    this.rehydratedSnapshot = { record: p, value: cached };
+                    this.rehydratedSnapshot = undefined;
+                    try {
+                        cached = { snapshot: persistedToSnapshot(runDetail(p)), status: p.status };
+                        this.rehydratedSnapshot = { record: runPreviewIdentity(p), value: cached };
+                    }
+                    catch {
+                        // Missing/corrupt committed details must not leave a previously
+                        // verified result visible or crash the overlay. Resume still uses
+                        // authoritative load validation, never this display snapshot.
+                        return undefined;
+                    }
                 }
                 return cached;
             })();

@@ -23,8 +23,10 @@ Successful deletion removes the head, backup, temporary head, event log and expo
 
 ## Listing and memory
 
-Listings cache lightweight views, not hydrated histories. They check directory identity/timestamps after a 300 ms burst cache; atomic head replacement invalidates the directory stamp. A five-second reconciliation catches external in-place edits even when directory timestamps do not change. Changed files are distinguished by inode, size and mtime.
+Listings cache lightweight views, not hydrated histories. They check directory identity/timestamps after a 300 ms burst cache; atomic head replacement invalidates the directory stamp. A five-second reconciliation catches external in-place edits even when directory timestamps do not change. Changed files are distinguished by inode, size, mtime and ctime. Returned preview values and summaries are isolated from internal list caches; detail getters remain lazy.
 
 Full-record hydration is lazy and bounded to eight entries with a 16 MiB serialized-weight budget (an accounting limit, not an exact JavaScript heap measurement). Caller-owned loaded records are isolated from the cache. The navigator retains one selected historical snapshot, so visiting many details does not indirectly retain all journals through list-cache keys.
+
+Cold navigator selection hydrates once per conversion, including oversized records, without raising the storage cache cap. Warm hydration checks sequence and run identity in addition to generation, committed bytes/hash and event-file stamp. See [responsiveness repair](responsiveness/implementation.md) for diagnostics and remaining performance limits.
 
 Writer locks never busy-wait. Contention is reported to the caller; existing required checkpoint writes fail closed, while ordinary progress writes retain their existing best-effort behavior. Dead-process mutex owners can be reclaimed; malformed mutexes are left intact because they may belong to an in-progress writer. Unsupported/corrupt storage should be preserved for diagnosis, not manually truncated to make resume proceed.

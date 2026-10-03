@@ -14,6 +14,14 @@ interface RunSummary {
     checkpoint: Pick<NonNullable<PersistedRunState["checkpoint"]>, "checkpointId" | "kind" | "status"> | null;
     usage: ReturnType<typeof aggregateAgentUsage>;
 }
+export type RunDisplayDetail = Pick<PersistedRunState, "runId" | "workflowName" | "status" | "agents" | "journal" | "phases" | "logs" | "currentPhase" | "tokenUsage">;
+/** Stable private revision identity; caller-visible fields are never cache keys. */
+export declare function runPreviewIdentity(state: PersistedRunState): object;
+/** One operation-local replay, even when the record exceeds the storage cache cap. */
+export declare function runDetail(state: PersistedRunState): RunDisplayDetail;
+/** Stat-only invalidation for an already verified selected snapshot. Never replay evidence. */
+export declare function runDetailIsCurrent(state: PersistedRunState): boolean;
+export declare function copyRunPreview(state: PersistedRunState): PersistedRunState;
 export declare function runSummary(state: PersistedRunState): RunSummary;
 interface Head {
     format: "pi-workflow-run-v2";

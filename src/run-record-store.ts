@@ -5,6 +5,7 @@ import { type PersistenceFsLayer, readJsonWithBackupRecovery, writeJsonAtomicWit
 import type { WorkflowRequestEvidence } from "./request-recording.js";
 import { INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents } from "./run-agent-settlement.js";
 import type { PersistedRunState } from "./run-persistence.js";
+import { workflowPerformance } from "./workflow-performance.js";
 
 interface RunSummary {
   total: number;
@@ -19,6 +20,48 @@ interface RunSummary {
   usage: ReturnType<typeof aggregateAgentUsage>;
 }
 const summaries = new WeakMap<PersistedRunState, RunSummary>();
+export type RunDisplayDetail = Pick<
+  PersistedRunState,
+  "runId" | "workflowName" | "status" | "agents" | "journal" | "phases" | "logs" | "currentPhase" | "tokenUsage"
+>;
+const previewSources = new WeakMap<
+  PersistedRunState,
+  { identity: object; detail: () => RunDisplayDetail; isCurrent: () => boolean }
+>();
+/** Stable private revision identity; caller-visible fields are never cache keys. */
+export function runPreviewIdentity(state: PersistedRunState): object {
+  return previewSources.get(state)?.identity ?? state;
+}
+/** One operation-local replay, even when the record exceeds the storage cache cap. */
+export function runDetail(state: PersistedRunState): RunDisplayDetail {
+  return previewSources.get(state)?.detail() ?? state;
+}
+/** Stat-only invalidation for an already verified selected snapshot. Never replay evidence. */
+export function runDetailIsCurrent(state: PersistedRunState): boolean {
+  try {
+    return previewSources.get(state)?.isCurrent() ?? true;
+  } catch {
+    return false;
+  }
+}
+export function copyRunPreview(state: PersistedRunState): PersistedRunState {
+  const descriptors = Object.getOwnPropertyDescriptors(state);
+  for (const descriptor of Object.values(descriptors)) {
+    if (!("value" in descriptor)) continue;
+    // Delivery text is lazy too: copy its descriptors without invoking it.
+    if (descriptor.value && typeof descriptor.value === "object") {
+      const nested = Object.getOwnPropertyDescriptors(descriptor.value);
+      for (const child of Object.values(nested)) if ("value" in child) child.value = structuredClone(child.value);
+      descriptor.value = Object.defineProperties(Array.isArray(descriptor.value) ? [] : {}, nested);
+    }
+  }
+  const copy = Object.defineProperties({}, descriptors) as PersistedRunState;
+  const source = previewSources.get(state);
+  if (source) previewSources.set(copy, source);
+  summaries.set(copy, structuredClone(runSummary(state)));
+  return copy;
+}
+
 export function runSummary(state: PersistedRunState): RunSummary {
   const cached = summaries.get(state);
   if (cached) return cached;
@@ -89,6 +132,8 @@ interface Entry {
   delta: Delta;
 }
 interface Cached {
+  sequence: number;
+  runId: string;
   generation: string;
   bytes: number;
   state: PersistedRunState;
@@ -218,7 +263,39 @@ function applyDelta(state: Record<string, unknown>, delta: Delta): void {
 }
 
 export function createRunRecordStore(fs: PersistenceFsLayer) {
+  workflowPerformance();
   const cache = new Map<string, Cached>();
+  function hash(line: string): string {
+    const diagnostics = workflowPerformance();
+    const start = diagnostics ? diagnostics.now() : 0;
+    const value = digest(line);
+    if (diagnostics) {
+      diagnostics.add("hashCalls");
+      diagnostics.add("hashBytes", Buffer.byteLength(line));
+      diagnostics.add("hashMs", diagnostics.now() - start);
+    }
+    return value;
+  }
+  function clone<T>(value: T): T {
+    const diagnostics = workflowPerformance();
+    const start = diagnostics ? diagnostics.now() : 0;
+    const copy = structuredClone(value);
+    if (diagnostics) {
+      diagnostics.add("cloneCalls");
+      diagnostics.add("cloneMs", diagnostics.now() - start);
+    }
+    return copy;
+  }
+  function cells(state: PersistedRunState): Cells {
+    const diagnostics = workflowPerformance();
+    const start = diagnostics ? diagnostics.now() : 0;
+    const value = cellsOf(state);
+    if (diagnostics) {
+      diagnostics.add("cellsCalls");
+      diagnostics.add("cellsMs", diagnostics.now() - start);
+    }
+    return value;
+  }
   const logPath = (path: string) => `${path}.events.jsonl`;
   function logStamp(path: string): string {
     const s = fs.statSync(logPath(path));
@@ -231,8 +308,12 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
         (n, v) => n + (typeof v === "string" ? v.length * 2 : [...v.values()].reduce((s, x) => s + x.length * 2, 0)),
         0,
       ) * 2;
+    const diagnostics = workflowPerformance();
+    if (diagnostics && size > MAX_CACHE_BYTES) diagnostics.add("cacheOversize");
     if (size <= MAX_CACHE_BYTES)
       cache.set(path, {
+        sequence: head.sequence,
+        runId: head.index.runId as string,
         generation: head.generation,
         bytes: head.bytes,
         state,
@@ -246,18 +327,31 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       const key = cache.keys().next().value as string;
       total -= cache.get(key)?.size ?? 0;
       cache.delete(key);
+      if (diagnostics) diagnostics.add("cacheEviction");
     }
   }
   function cachedAtHead(path: string, head: Head): Cached | undefined {
     const cached = cache.get(path);
-    return cached?.generation === head.generation &&
-      cached.bytes === head.bytes &&
-      cached.hash === head.hash &&
-      cached.stamp === logStamp(path)
-      ? cached
-      : undefined;
+    const reason = !cached
+      ? "missAbsent"
+      : cached.generation !== head.generation
+        ? "missGeneration"
+        : cached.sequence !== head.sequence
+          ? "missSequence"
+          : cached.runId !== head.index.runId
+            ? "missIdentity"
+            : cached.bytes !== head.bytes
+              ? "missBytes"
+              : cached.hash !== head.hash
+                ? "missHash"
+                : cached.stamp !== logStamp(path)
+                  ? "missStamp"
+                  : undefined;
+    const diagnostics = workflowPerformance();
+    if (diagnostics && reason) diagnostics.add(reason);
+    return reason ? undefined : cached;
   }
-  function hydrate(path: string, head: Head): PersistedRunState {
+  function hydrate(path: string, head: Head, caller: "read" | "detail" | "lazy" | "save" = "lazy"): PersistedRunState {
     if (
       !Number.isSafeInteger(head.bytes) ||
       head.bytes <= 0 ||
@@ -265,7 +359,10 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       head.sequence <= 0
     )
       throw new Error("Invalid run commit boundary");
+    const diagnostics = workflowPerformance();
+    if (diagnostics) diagnostics.add(caller);
     const cached = cachedAtHead(path, head);
+    if (diagnostics) diagnostics.add(cached ? "cacheHit" : "cacheMiss");
     if (cached) {
       cache.delete(path);
       cache.set(path, cached);
@@ -281,6 +378,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
         const n = fs.readSync(fd, bytes, read, bytes.length - read, read);
         if (!n) throw new Error("Truncated committed run log");
         read += n;
+        if (diagnostics) diagnostics.add("readBytes", n);
       }
       raw = bytes.toString("utf8");
     } finally {
@@ -291,16 +389,17 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
     let previous = "",
       sequence = 0;
     for (const line of raw.slice(0, -1).split("\n")) {
+      if (diagnostics) diagnostics.add("replayEntries");
       const entry = JSON.parse(line) as Entry;
       if (entry.generation !== head.generation || entry.sequence !== ++sequence || entry.previous !== previous)
         throw new Error("Invalid run log chain");
       applyDelta(state, entry.delta);
-      previous = digest(line);
+      previous = hash(line);
     }
     if (previous !== head.hash || sequence !== head.sequence || state.runId !== head.index.runId)
       throw new Error("Run commit mismatch");
     const result = state as unknown as PersistedRunState;
-    remember(path, head, result, cellsOf(result));
+    remember(path, head, result, cells(result));
     return result;
   }
   function read(path: string): PersistedRunState | null {
@@ -309,7 +408,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
     if (!isHead(record)) return record;
     // A committed-but-damaged log fails closed, rather than silently replaying
     // an older paid-call prefix. Only a corrupt/missing head uses its backup.
-    return structuredClone(hydrate(path, record));
+    return clone(hydrate(path, record, "read"));
   }
   function peek(path: string): PersistedRunState | null {
     const record = readRecord(fs, path);
@@ -331,7 +430,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
           get: () => {
             const full = head ? hydrate(path, head) : read(path);
             if (!full) throw new Error("Run record disappeared");
-            return structuredClone((full as unknown as Record<string, unknown>)[key]);
+            return clone((full as unknown as Record<string, unknown>)[key]);
           },
         });
     // Markers are needed to route pending delivery without loading results.
@@ -352,6 +451,31 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       });
     }
     summaries.set(view, head?.summary ?? runSummary(record as PersistedRunState));
+    let detailStamp: string | undefined;
+    previewSources.set(view, {
+      identity: {},
+      isCurrent: () => !head || (detailStamp !== undefined && detailStamp === logStamp(path)),
+      detail: () => {
+        const stamp = head ? logStamp(path) : undefined;
+        const full = head ? hydrate(path, head, "detail") : read(path);
+        if (!full) throw new Error("Run record disappeared");
+        detailStamp = stamp;
+        // Navigator only needs these fields. Do not clone observations, scripts,
+        // args or delivery payloads just to open phases. Full read stays intact.
+        const { runId, workflowName, status, agents, journal, phases, logs, currentPhase, tokenUsage } = full;
+        return clone({
+          runId,
+          workflowName,
+          status,
+          agents,
+          journal,
+          phases,
+          logs,
+          currentPhase,
+          tokenUsage,
+        });
+      },
+    });
     return view;
   }
   function commit(
@@ -379,7 +503,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       generation: entry.generation,
       bytes: (head?.bytes ?? 0) + Buffer.byteLength(line) + 1,
       sequence: entry.sequence,
-      hash: digest(line),
+      hash: hash(line),
     };
     writeJsonAtomicWithBackup(fs, path, next);
     cache.delete(path);
@@ -388,11 +512,11 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
   function save(path: string, state: PersistedRunState): void {
     const previous = readRecord(fs, path);
     const head = isHead(previous) ? previous : undefined;
-    const prior = head ? hydrate(path, head) : undefined;
-    const before = prior ? (cache.get(path)?.cells ?? cellsOf(prior)) : new Map();
+    const prior = head ? hydrate(path, head, "save") : undefined;
+    const before = prior ? (cache.get(path)?.cells ?? cells(prior)) : new Map();
     // Observation writes have an independent lifetime from snapshot callbacks.
     // A later stale snapshot must never erase the committed evidence.
-    const after = cellsOf({ ...state, requestObservations: prior?.requestObservations ?? state.requestObservations });
+    const after = cells({ ...state, requestObservations: prior?.requestObservations ?? state.requestObservations });
     const delta = deltaOf(before, after);
     const next = commit(path, head, delta, {
       keys: [...after.keys()],
@@ -417,6 +541,8 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
     remember(path, next, copy as unknown as PersistedRunState, after);
   }
   function appendObservation(path: string, observation: WorkflowRequestEvidence): boolean {
+    const diagnostics = workflowPerformance();
+    if (diagnostics) diagnostics.add("observation");
     const record = readRecord(fs, path);
     if (!record) return false;
     if (!isHead(record)) {
@@ -427,7 +553,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       return true;
     }
     const cached = cachedAtHead(path, record);
-    const persisted = structuredClone(observation);
+    const persisted = clone(observation);
     const delta: Delta = {
       set: {},
       remove: [],
@@ -471,7 +597,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       return true;
     }
     const updated = { ...patch, updatedAt: new Date().toISOString() };
-    const after = cellsOf(updated as PersistedRunState);
+    const after = cells(updated as PersistedRunState);
     const delta = deltaOf(new Map(Object.keys(updated).map((key) => [key, "null"])), after);
     const index = { ...record.index };
     for (const [key, value] of Object.entries(updated))

@@ -18,7 +18,7 @@ import test from "node:test";
 import { WORKFLOW_RUNS_DIR } from "../src/config.js";
 import { defaultPersistenceFs, type PersistenceFsLayer } from "../src/fs-persistence.js";
 import { createRunPersistence, type PersistedRunState } from "../src/run-persistence.js";
-import { createRunRecordStore } from "../src/run-record-store.js";
+import { createRunRecordStore, runSummary } from "../src/run-record-store.js";
 import { WorkflowManager } from "../src/workflow-manager.js";
 import { workflowProjectPaths } from "../src/workflow-paths.js";
 import { withFakeHomeAsync } from "./helpers/fake-home.js";
@@ -490,5 +490,128 @@ test(
     assert.throws(() => contender.save(state("replacement-owner")), /EEXIST/);
     assert.ok(replaced);
     assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, "new-live-owner");
+  }),
+);
+
+test(
+  "warm and cold loads reject altered committed sequence and identity",
+  withFixture((cwd) => {
+    for (const field of ["sequence", "identity"]) {
+      const store = createRunRecordStore(defaultPersistenceFs());
+      const path = join(cwd, `${field}.json`);
+      store.save(path, state(field));
+      const head = JSON.parse(readFileSync(path, "utf8"));
+      if (field === "sequence") head.sequence++;
+      else head.index.runId = "foreign";
+      writeFileSync(path, JSON.stringify(head));
+      assert.throws(() => createRunRecordStore(defaultPersistenceFs()).read(path), /mismatch/);
+      assert.throws(() => store.read(path), /mismatch/);
+    }
+  }),
+);
+
+test(
+  "list previews isolate routing and nested summary mutations without history reads",
+  withFixture((cwd) => {
+    const real = defaultPersistenceFs();
+    let reads = 0;
+    const persistence = createRunPersistence(cwd, {
+      readSync: ((...args: Parameters<typeof real.readSync>) => {
+        reads++;
+        return real.readSync(...args);
+      }) as typeof real.readSync,
+    });
+    persistence.save({
+      ...state("isolated"),
+      tokenUsage: { input: 1, output: 2, total: 3 },
+      pendingDelivery: { kind: "text", text: "synthetic delivery", deliveryId: "original" },
+    });
+    reads = 0;
+    const first = persistence.list()[0];
+    first.status = "failed";
+    assert.ok(first.tokenUsage);
+    first.tokenUsage.total = 999;
+    runSummary(first).activeLabels.push("caller-mutation");
+    assert.ok(first.pendingDelivery);
+    first.pendingDelivery.deliveryId = "changed";
+    assert.equal(persistence.list()[0].status, "completed");
+    assert.equal(persistence.list()[0].tokenUsage?.total, 3);
+    assert.equal(persistence.list()[0].pendingDelivery?.deliveryId, "original");
+    assert.deepEqual(runSummary(persistence.list()[0]).activeLabels, []);
+    assert.equal(reads, 0);
+    const marker = persistence.list()[0].pendingDelivery;
+    assert.equal(marker?.kind === "text" ? marker.text : undefined, "synthetic delivery");
+  }),
+);
+
+test(
+  "oversized navigator selection replays once, subsequent unchanged selections replay zero times",
+  withFixture(async (cwd) => {
+    const { NavigatorModel } = await import("../src/workflow-ui.js");
+    const real = defaultPersistenceFs();
+    let reads = 0;
+    const persistence = createRunPersistence(cwd, {
+      readSync: ((...args: Parameters<typeof real.readSync>) => {
+        reads++;
+        return real.readSync(...args);
+      }) as typeof real.readSync,
+    });
+    persistence.save({
+      ...state("oversized", [{ index: 0, hash: "test", result: "x".repeat(5 * 1024 * 1024) }]),
+      phases: ["phase"],
+    });
+    reads = 0;
+    const model = new NavigatorModel({ listRuns: () => persistence.list(), getRun: () => undefined });
+    model.phases("oversized");
+    assert.equal(reads, 1);
+    model.phases("oversized");
+    assert.equal(reads, 1);
+  }),
+);
+
+test(
+  "in-place head changes invalidate preview cache despite coarse mtime",
+  withFixture((cwd) => {
+    const real = defaultPersistenceFs();
+    const persistence = createRunPersistence(cwd, {
+      statSync: ((...args: Parameters<typeof real.statSync>) => {
+        const stat = real.statSync(...args);
+        if (String(args[0]).endsWith(".json")) stat.mtimeMs = 0;
+        return stat;
+      }) as typeof real.statSync,
+    });
+    persistence.save({ ...state("head-stamp"), sessionId: "owner-one" });
+    assert.equal(persistence.list()[0].sessionId, "owner-one");
+    const path = join(persistence.getRunsDir(), "head-stamp.json");
+    const text = readFileSync(path, "utf8");
+    writeFileSync(path, text.replace("owner-one", "owner-two"));
+    const originalNow = Date.now;
+    Date.now = () => originalNow() + 6000;
+    try {
+      assert.equal(persistence.list()[0].sessionId, "owner-two");
+    } finally {
+      Date.now = originalNow;
+    }
+  }),
+);
+
+test(
+  "selected navigator detail fails closed after log-only committed corruption",
+  withFixture(async (cwd) => {
+    const { NavigatorModel } = await import("../src/workflow-ui.js");
+    const persistence = createRunPersistence(cwd);
+    persistence.save({
+      ...state("selected"),
+      phases: ["phase"],
+      agents: [
+        { id: 1, label: "worker", prompt: "synthetic", status: "done", phase: "phase", result: "verified-result" },
+      ],
+    });
+    const model = new NavigatorModel({ listRuns: () => persistence.list(), getRun: () => undefined });
+    assert.equal(model.agentDetail("selected", 1)?.result, "verified-result");
+    const log = join(persistence.getRunsDir(), "selected.json.events.jsonl");
+    writeFileSync(log, readFileSync(log, "utf8").replace("verified-result", "tampered-result"));
+    assert.equal(persistence.load("selected"), null);
+    assert.equal(model.agentDetail("selected", 1), undefined);
   }),
 );

@@ -27,7 +27,13 @@ import type { AgentUsage } from "./agent.js";
 import type { ThemeLike, WorkflowAgentSnapshot, WorkflowSnapshot } from "./display.js";
 import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js";
 import type { PersistedRunState } from "./run-persistence.js";
-import { runSummary } from "./run-record-store.js";
+import {
+  type RunDisplayDetail,
+  runDetail,
+  runDetailIsCurrent,
+  runPreviewIdentity,
+  runSummary,
+} from "./run-record-store.js";
 import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js";
 import type { WorkflowManager } from "./workflow-manager.js";
 import {
@@ -248,11 +254,10 @@ export class NavigatorModel {
     return this.frameRuns;
   }
 
-  // Rehydrated persisted snapshots, keyed by the parsed record OBJECT
-  // (audit2 #25): avoid re-stringifying every agent's full result when
-  // browsing the same unchanged persisted record in subsequent frames.
-  // A fresh disk parse yields a new object, so invalidation is automatic.
-  private rehydratedSnapshot?: { record: PersistedRunState; value: { snapshot: WorkflowSnapshot; status: string } };
+  // Keep one converted snapshot by private parsed-head revision, not mutable
+  // caller-visible preview identity. Defensive list copies share that token;
+  // a fresh disk parse produces a new token and invalidates this selection.
+  private rehydratedSnapshot?: { record: object; value: { snapshot: WorkflowSnapshot; status: string } };
 
   private snapshot(runId: string): { snapshot: WorkflowSnapshot; status: string } | undefined {
     if (this.frameDepth > 0 && this.frameSnapshots.has(runId)) return this.frameSnapshots.get(runId);
@@ -262,10 +267,21 @@ export class NavigatorModel {
       : (() => {
           const p = this.persistedRuns().find((r) => r.runId === runId);
           if (!p) return undefined;
-          let cached = this.rehydratedSnapshot?.record === p ? this.rehydratedSnapshot.value : undefined;
+          let cached =
+            this.rehydratedSnapshot?.record === runPreviewIdentity(p) && runDetailIsCurrent(p)
+              ? this.rehydratedSnapshot.value
+              : undefined;
           if (!cached) {
-            cached = { snapshot: persistedToSnapshot(p), status: p.status };
-            this.rehydratedSnapshot = { record: p, value: cached };
+            this.rehydratedSnapshot = undefined;
+            try {
+              cached = { snapshot: persistedToSnapshot(runDetail(p)), status: p.status };
+              this.rehydratedSnapshot = { record: runPreviewIdentity(p), value: cached };
+            } catch {
+              // Missing/corrupt committed details must not leave a previously
+              // verified result visible or crash the overlay. Resume still uses
+              // authoritative load validation, never this display snapshot.
+              return undefined;
+            }
           }
           return cached;
         })();
@@ -435,7 +451,7 @@ export class NavigatorModel {
   }
 }
 
-function persistedToSnapshot(p: PersistedRunState): WorkflowSnapshot {
+function persistedToSnapshot(p: RunDisplayDetail): WorkflowSnapshot {
   // Array guards (#110): structurally corrupt persisted arrays must not crash
   // the overlay. Resumable runs also avoid duplicating full results in agents[]
   // and the journal, so rehydrate done agents by namespaced call identity. The

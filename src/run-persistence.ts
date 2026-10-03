@@ -16,7 +16,7 @@ import {
 } from "./fs-persistence.js";
 import type { WorkflowRequestEvidence } from "./request-recording.js";
 import { settleInterruptedPersistedAgents } from "./run-agent-settlement.js";
-import { createRunRecordStore } from "./run-record-store.js";
+import { copyRunPreview, createRunRecordStore } from "./run-record-store.js";
 
 export {
   agentHasNonTerminalStatus,
@@ -501,7 +501,7 @@ export function createRunPersistence(
     listCache = undefined;
   };
 
-  // Per-file mtime+size+ino cache, keyed by absolute path: even once the
+  // Per-file mtime+ctime+size+ino cache, keyed by absolute path: even once the
   // TTL-level listCache above expires (the active panel polls roughly every
   // 300ms, i.e. faster than or comparable to the TTL), most run files on
   // disk haven't changed since the last recompute. Re-stat is cheap; re-read
@@ -509,7 +509,9 @@ export function createRunPersistence(
   // with what actually changed. A file whose (mtimeMs, size, ino) all match
   // what we last parsed is reused as-is instead of being re-read; entries
   // for files that vanished between recomputes are pruned so this cache
-  // can't grow unbounded independent of what's actually on disk.
+  // can't grow unbounded independent of what's actually on disk. ctime also
+  // detects in-place edits with unchanged mtime; stat-only reuse cannot
+  // detect hostile writes that preserve every available stamp field.
   //
   // ino is load-bearing, not redundant with mtime+size: save() writes via
   // tmp-write + rename (writeJsonAtomicWithBackup), and a rename onto an
@@ -522,7 +524,10 @@ export function createRunPersistence(
   // (mtimeMs, size) alone — serving stale, previously-cached content
   // forever until something ELSE about the file changes. The inode always
   // changes on such a rename, so adding it closes that hole for free.
-  const fileStateCache = new Map<string, { mtimeMs: number; size: number; ino: number; state: PersistedRunState }>();
+  const fileStateCache = new Map<
+    string,
+    { mtimeMs: number; ctimeMs: number; size: number; ino: number; state: PersistedRunState }
+  >();
 
   const removeStaleLegacyLock = (runId: string): boolean => {
     const lock = legacyLockPath(runId);
@@ -547,17 +552,29 @@ export function createRunPersistence(
           const stat = _statSync(path);
           const cached = fileStateCache.get(path);
           // Reuse the last parse when the file is byte-identical (same
-          // mtime + size + inode) to what produced it — the dominant case
+          // mtime + ctime + size + inode) to what produced it — the dominant case
           // on every poll tick once a run goes terminal and stops changing.
           // ino is what actually rules out a false "unchanged" match on a
           // coarse-mtime filesystem (see the field doc comment above).
-          if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size && cached.ino === stat.ino) {
+          if (
+            cached &&
+            cached.mtimeMs === stat.mtimeMs &&
+            cached.ctimeMs === stat.ctimeMs &&
+            cached.size === stat.size &&
+            cached.ino === stat.ino
+          ) {
             if (!byRunId.has(cached.state.runId)) byRunId.set(cached.state.runId, cached.state);
             continue;
           }
           const record = JSON.parse(_readFileSync(path, "utf-8"));
           const state = records.preview(path, record);
-          fileStateCache.set(path, { mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino, state });
+          fileStateCache.set(path, {
+            mtimeMs: stat.mtimeMs,
+            ctimeMs: stat.ctimeMs,
+            size: stat.size,
+            ino: stat.ino,
+            state,
+          });
           if (!byRunId.has(state.runId)) byRunId.set(state.runId, state);
         } catch {
           // Skip corrupted/unreadable files; don't let a stale cache entry
@@ -733,25 +750,24 @@ export function createRunPersistence(
 
     list(): PersistedRunState[] {
       const now = Date.now();
-      // Return a fresh array on every call (a cheap ref-copy) so a caller that
-      // sorts/reverses/mutates the result in place can't corrupt the cache — the
-      // pre-cache code re-parsed into a new array each call, preserve that.
+      // Copy routing values and lazy descriptors, not history. Neither array
+      // mutation nor nested routing/summary mutation can poison internal views.
       if (listCache && now - listCacheAt < LIST_CACHE_TTL_MS) {
-        return [...listCache];
+        return listCache.map(copyRunPreview);
       }
       // Cooperative writers replace heads atomically, changing the directory
       // stamp. Reconcile in-place external edits at most every five seconds.
       const stamp = directoryVersion();
       if (listCache && stamp === directoryStamp && now - reconciledAt < 5000) {
         listCacheAt = now;
-        return [...listCache];
+        return listCache.map(copyRunPreview);
       }
       const result = computeList();
       listCache = result;
       listCacheAt = now;
       reconciledAt = now;
       directoryStamp = stamp;
-      return [...result];
+      return result.map(copyRunPreview);
     },
 
     delete(runId: string): boolean {

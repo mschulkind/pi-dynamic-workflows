@@ -33,6 +33,7 @@ import { registerWorkflowCommands } from "./workflow-commands.js";
 import { createWorkflowControlTool } from "./workflow-control-tool.js";
 import { installWorkflowKeywordArming } from "./workflow-editor.js";
 import { WorkflowManager } from "./workflow-manager.js";
+import { stopWorkflowPerformance } from "./workflow-performance.js";
 import { createWorkflowStorage, type WorkflowStorage } from "./workflow-saved.js";
 import { loadWorkflowSettings, saveWorkflowSettingsForCwd } from "./workflow-settings.js";
 import { createWorkflowTool } from "./workflow-tool.js";
@@ -189,6 +190,7 @@ export default function extension(pi: ExtensionAPI) {
   let disposeMixedFleet = () => {};
 
   pi.on("session_shutdown", (event?: { reason?: string; targetSessionFile?: string }) => {
+    stopWorkflowPerformance();
     manager.setParentSessionManager(undefined);
     usageLimitScheduler.dispose();
     disposeMixedFleet();

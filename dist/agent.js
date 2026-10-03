@@ -3,17 +3,17 @@ import { realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAgentSession, createCodingTools, DefaultPackageManager, DefaultResourceLoader, getAgentDir, ModelRegistry, SessionManager, SettingsManager, } from "@earendil-works/pi-coding-agent";
 import { Check, Convert } from "typebox/value";
-import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
 const LIVE_USAGE_EMIT_INTERVAL_MS = 250;
 /**
  * Find a JSON object/array in free-form text: a fenced ```json block if present,

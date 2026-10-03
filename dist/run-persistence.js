@@ -3,12 +3,12 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { ensureDir as ensureDirFs, listJsonFilesSafe, resolvePersistenceFs, unlinkIfExistsSafe, } from "./fs-persistence.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { createRunRecordStore } from "./run-record-store.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-export { agentHasNonTerminalStatus, INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents, } from "./run-agent-settlement.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { ensureDir as ensureDirFs, listJsonFilesSafe, resolvePersistenceFs, unlinkIfExistsSafe, } from "./fs-persistence.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { copyRunPreview, createRunRecordStore } from "./run-record-store.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+export { agentHasNonTerminalStatus, INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents, } from "./run-agent-settlement.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
+import { workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:2d8e7cb7c269cf9a1336216b3646528b36ffc8595d2e268c10a1117614f035c7";
 /**
  * Sanitize a persisted/incoming auto-resume attempt counter: corrupt or
  * foreign values (non-number, NaN, Infinity, negative, non-integer) become
@@ -215,7 +215,7 @@ export function createRunPersistence(cwd, fsOverride, options) {
     const invalidateListCache = () => {
         listCache = undefined;
     };
-    // Per-file mtime+size+ino cache, keyed by absolute path: even once the
+    // Per-file mtime+ctime+size+ino cache, keyed by absolute path: even once the
     // TTL-level listCache above expires (the active panel polls roughly every
     // 300ms, i.e. faster than or comparable to the TTL), most run files on
     // disk haven't changed since the last recompute. Re-stat is cheap; re-read
@@ -223,7 +223,9 @@ export function createRunPersistence(cwd, fsOverride, options) {
     // with what actually changed. A file whose (mtimeMs, size, ino) all match
     // what we last parsed is reused as-is instead of being re-read; entries
     // for files that vanished between recomputes are pruned so this cache
-    // can't grow unbounded independent of what's actually on disk.
+    // can't grow unbounded independent of what's actually on disk. ctime also
+    // detects in-place edits with unchanged mtime; stat-only reuse cannot
+    // detect hostile writes that preserve every available stamp field.
     //
     // ino is load-bearing, not redundant with mtime+size: save() writes via
     // tmp-write + rename (writeJsonAtomicWithBackup), and a rename onto an
@@ -262,18 +264,28 @@ export function createRunPersistence(cwd, fsOverride, options) {
                     const stat = _statSync(path);
                     const cached = fileStateCache.get(path);
                     // Reuse the last parse when the file is byte-identical (same
-                    // mtime + size + inode) to what produced it — the dominant case
+                    // mtime + ctime + size + inode) to what produced it — the dominant case
                     // on every poll tick once a run goes terminal and stops changing.
                     // ino is what actually rules out a false "unchanged" match on a
                     // coarse-mtime filesystem (see the field doc comment above).
-                    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size && cached.ino === stat.ino) {
+                    if (cached &&
+                        cached.mtimeMs === stat.mtimeMs &&
+                        cached.ctimeMs === stat.ctimeMs &&
+                        cached.size === stat.size &&
+                        cached.ino === stat.ino) {
                         if (!byRunId.has(cached.state.runId))
                             byRunId.set(cached.state.runId, cached.state);
                         continue;
                     }
                     const record = JSON.parse(_readFileSync(path, "utf-8"));
                     const state = records.preview(path, record);
-                    fileStateCache.set(path, { mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino, state });
+                    fileStateCache.set(path, {
+                        mtimeMs: stat.mtimeMs,
+                        ctimeMs: stat.ctimeMs,
+                        size: stat.size,
+                        ino: stat.ino,
+                        state,
+                    });
                     if (!byRunId.has(state.runId))
                         byRunId.set(state.runId, state);
                 }
@@ -455,25 +467,24 @@ export function createRunPersistence(cwd, fsOverride, options) {
         },
         list() {
             const now = Date.now();
-            // Return a fresh array on every call (a cheap ref-copy) so a caller that
-            // sorts/reverses/mutates the result in place can't corrupt the cache — the
-            // pre-cache code re-parsed into a new array each call, preserve that.
+            // Copy routing values and lazy descriptors, not history. Neither array
+            // mutation nor nested routing/summary mutation can poison internal views.
             if (listCache && now - listCacheAt < LIST_CACHE_TTL_MS) {
-                return [...listCache];
+                return listCache.map(copyRunPreview);
             }
             // Cooperative writers replace heads atomically, changing the directory
             // stamp. Reconcile in-place external edits at most every five seconds.
             const stamp = directoryVersion();
             if (listCache && stamp === directoryStamp && now - reconciledAt < 5000) {
                 listCacheAt = now;
-                return [...listCache];
+                return listCache.map(copyRunPreview);
             }
             const result = computeList();
             listCache = result;
             listCacheAt = now;
             reconciledAt = now;
             directoryStamp = stamp;
-            return [...result];
+            return result.map(copyRunPreview);
         },
         delete(runId) {
             try {
