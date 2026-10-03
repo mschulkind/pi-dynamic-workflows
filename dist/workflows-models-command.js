@@ -14,9 +14,9 @@
  */
 import { existsSync } from "node:fs";
 import { Container, SelectList, Spacer, Text, } from "@earendil-works/pi-tui";
-import { listAvailableModelSpecs, listAvailableModels } from "./agent.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { formatModelSpecWithThinking, splitModelSpecThinking, THINKING_LEVELS, } from "./model-spec.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { buildDefaultTierConfig, getModelTierConfigPath, getProjectModelTierConfigPath, loadModelTierConfig, saveModelTierConfig, sortedTierNames, } from "./model-tier-config.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { listAvailableModelSpecs, listAvailableModels } from "./agent.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { formatModelSpecWithThinking, splitModelSpecThinking, THINKING_LEVELS, } from "./model-spec.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { buildDefaultTierConfig, getModelTierConfigPath, getProjectModelTierConfigPath, loadModelTierConfig, saveModelTierConfig, sortedTierNames, } from "./model-tier-config.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 /**
  * Register the `/workflows-models` command with Pi.
  */

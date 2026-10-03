@@ -14,10 +14,10 @@
  */
 import { getLanguageFromPath, getMarkdownTheme, renderDiff, } from "@earendil-works/pi-coding-agent";
 import { Markdown, parseKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { runSummary } from "./run-record-store.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { isSafeSavedWorkflowName, savedWorkflowRevision, } from "./workflow-saved.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { runSummary } from "./run-record-store.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { isSafeSavedWorkflowName, savedWorkflowRevision, } from "./workflow-saved.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 const STATUS_ICON = {
     pending: "·",
     queued: "·",

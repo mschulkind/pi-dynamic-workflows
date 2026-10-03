@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import packageJson from "../package.json?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328" with { type: "json" };
-import { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import packageJson from "../package.json?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a" with { type: "json" };
+import { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 /**
  * Live extension state that Pi may hand from one extension generation to the
  * next during any in-process session replacement: `/reload`, `/new`, resume,

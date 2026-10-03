@@ -3,8 +3,8 @@
  */
 import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { ensureDir as ensureDirFs, listJsonFilesSafe, readJsonWithBackupRecovery, resolvePersistenceFs, writeJsonAtomicPreservingPreviousBackup, writeJsonAtomicWithBackupStrict, } from "./fs-persistence.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { workflowProjectPaths, workflowUserSavedDir } from "./workflow-paths.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { ensureDir as ensureDirFs, listJsonFilesSafe, readJsonWithBackupRecovery, resolvePersistenceFs, writeJsonAtomicPreservingPreviousBackup, writeJsonAtomicWithBackupStrict, } from "./fs-persistence.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { workflowProjectPaths, workflowUserSavedDir } from "./workflow-paths.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 /** Stable content fingerprint used to guard mutations against same-path races. */
 export function savedWorkflowRevision(workflow) {
     return createHash("sha256")

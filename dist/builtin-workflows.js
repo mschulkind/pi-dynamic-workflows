@@ -12,10 +12,10 @@
  * per-pattern generator scripts are written exactly once.
  */
 import { createCodingTools } from "@earendil-works/pi-coding-agent";
-import { generateAdversarialReviewWorkflow, generateMultiPerspectiveWorkflow } from "./adversarial-review.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { generateCodeReviewWorkflow } from "./code-review.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { generateCodebaseAuditWorkflow, generateDeepResearchWorkflow } from "./deep-research.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { createWebTools } from "./web-tools.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { generateAdversarialReviewWorkflow, generateMultiPerspectiveWorkflow } from "./adversarial-review.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { generateCodeReviewWorkflow } from "./code-review.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { generateCodebaseAuditWorkflow, generateDeepResearchWorkflow } from "./deep-research.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { createWebTools } from "./web-tools.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 /** Default perspective set used when a caller gives fewer than two. */
 export const DEFAULT_MULTI_PERSPECTIVES = [
     "technical",

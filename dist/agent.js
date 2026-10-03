@@ -3,17 +3,18 @@ import { realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAgentSession, createCodingTools, DefaultPackageManager, DefaultResourceLoader, getAgentDir, ModelRegistry, SessionManager, SettingsManager, } from "@earendil-works/pi-coding-agent";
 import { Check, Convert } from "typebox/value";
-import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { optionalPathSet, PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, partitionOptionalExtensions, reportOptionalLoadErrors, resolveOptionalChildExtensions, warnOptionalChildExtension, withOptionalChildExtensions, } from "./optional-child-extensions.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 const LIVE_USAGE_EMIT_INTERVAL_MS = 250;
 /**
  * Find a JSON object/array in free-form text: a fenced ```json block if present,
@@ -647,6 +648,28 @@ export class WorkflowAgent {
         return this.buildSharedResourceLoader(agentDir, cwd, key, guarded);
     }
     /**
+     * The resource loader one child session uses: the shared loader, plus the
+     * optional child extensions from the cross-package registry (see
+     * optional-child-extensions.ts). Those observers load regardless of the
+     * middleware allowlist and fail open.
+     *
+     * A shared loader stays shared: the observers load per child into an overlay
+     * with its own extension runtime (withOptionalChildExtensions), so the #109
+     * sharing survives them. A session-local loader (middleware opt-in, or a
+     * guarded child) already loads per child, so the observers are added to it
+     * directly in buildSharedResourceLoader.
+     */
+    async getChildResourceLoader(agentDir, cwd, guarded) {
+        const loader = await this.getSharedResourceLoader(agentDir, cwd, guarded);
+        const shared = !guarded && this.providerMiddlewareExtensions.length === 0;
+        if (!shared)
+            return loader;
+        const optional = resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, [], cwd);
+        for (const diagnostic of optional.diagnostics)
+            warnOptionalChildExtension(diagnostic);
+        return withOptionalChildExtensions(loader, optional.extensions, { cwd, agentDir });
+    }
+    /**
      * Bound the loader memo (audit2 #41): worktree isolation gives every agent
      * a unique cwd, so N worktree agents would otherwise retain N
      * fully-reloaded loaders until run end. LRU-by-touch (hits re-insert in
@@ -682,15 +705,29 @@ export class WorkflowAgent {
                 })
                     .map((extension) => extension.path);
             }
+            // A session-local loader carries the child's optional observers itself;
+            // a shared one never does (getChildResourceLoader overlays them per child).
+            const optional = shared
+                ? { extensions: [], diagnostics: [] }
+                : resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, middlewarePaths, cwd);
+            for (const diagnostic of optional.diagnostics)
+                warnOptionalChildExtension(diagnostic);
+            const optionalPaths = optionalPathSet(optional.extensions);
             const loader = new DefaultResourceLoader({
                 cwd,
                 agentDir,
                 settingsManager,
                 noExtensions: true,
-                additionalExtensionPaths: middlewarePaths,
-                extensionsOverride: (base) => filterProviderMiddlewareExtensions(base, this.providerMiddlewareExtensions, packageSources),
+                additionalExtensionPaths: [...middlewarePaths, ...optional.extensions.map(({ path }) => path)],
+                extensionsOverride: (base) => {
+                    // Observers bypass the middleware allowlist and load after it.
+                    const { rest, optional: observers } = partitionOptionalExtensions(base, optionalPaths);
+                    const filtered = filterProviderMiddlewareExtensions(rest, this.providerMiddlewareExtensions, packageSources);
+                    return { ...filtered, extensions: [...filtered.extensions, ...observers] };
+                },
             });
             await loader.reload();
+            reportOptionalLoadErrors(loader.getExtensions(), optionalPaths);
             return loader;
         })().catch((err) => {
             // Don't let a transient build failure (e.g. EMFILE during reload's disk
@@ -1032,7 +1069,7 @@ export class WorkflowAgent {
         let attached;
         let session;
         try {
-            const selectedLoader = this.sessionOptions.resourceLoader ?? (await this.getSharedResourceLoader(agentDir, runCwd, !!approval));
+            const selectedLoader = this.sessionOptions.resourceLoader ?? (await this.getChildResourceLoader(agentDir, runCwd, !!approval));
             attached = approval?.attach(selectedLoader, effectiveSessionManager);
             if (!approval)
                 noteChildRuntime(selectedLoader);

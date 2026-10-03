@@ -1,8 +1,8 @@
 /** Versioned run records: append changed cells, then atomically commit a small index head. */
 import { createHash, randomUUID } from "node:crypto";
-import { aggregateAgentUsage } from "./display.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { readJsonWithBackupRecovery, writeJsonAtomicWithBackup } from "./fs-persistence.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
-import { INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { aggregateAgentUsage } from "./display.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { readJsonWithBackupRecovery, writeJsonAtomicWithBackup } from "./fs-persistence.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
 const summaries = new WeakMap();
 export function runSummary(state) {
     const cached = summaries.get(state);
