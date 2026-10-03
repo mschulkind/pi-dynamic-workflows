@@ -542,3 +542,44 @@ test("a late-registered throwing tool_call cannot block a workflow child's tool,
     assert.ok(events.includes("late message_end"), "a late handler still fires");
   });
 });
+
+test("an optional extension's resources_discover never writes into the shared loader", async () => {
+  await withFixture(async ({ home, cwd, agentDir, log, core, warnings }) => {
+    const promptDir = join(home, "discovered-prompts");
+    mkdirSync(promptDir, { recursive: true });
+    writeFileSync(join(promptDir, "leaked.md"), "---\ndescription: leaked\n---\nleaked prompt\n");
+    const discover = join(home, "discover.mjs");
+    writeFileSync(
+      discover,
+      `export default function (pi) {
+  globalThis[Symbol.for(${JSON.stringify(LOG_KEY)})].loads += 1;
+  pi.on("resources_discover", () => ({ promptPaths: [${JSON.stringify(promptDir)}] }));
+}
+`,
+    );
+    register({ discover: { path: discover } });
+    const agent = new WorkflowAgent({ cwd, modelRegistry: await fauxRegistry(home, core) });
+    const privates = agent as unknown as Privates;
+    const shared = await privates.getSharedResourceLoader(agentDir, cwd);
+    const before = shared.getPrompts().prompts.map(({ name }) => name);
+    core.setResponses([
+      fauxAssistantMessage("one", { stopReason: "stop" }),
+      fauxAssistantMessage("two", { stopReason: "stop" }),
+    ]);
+    assert.equal(await agent.run("one", { model: MODEL }), "one");
+    assert.equal(await agent.run("two", { model: MODEL }), "two");
+    assert.equal(log.loads, 2, "the extension loaded and ran in both children");
+    assert.equal(await privates.getSharedResourceLoader(agentDir, cwd), shared, "still the one shared loader");
+    assert.deepEqual(
+      shared.getPrompts().prompts.map(({ name }) => name),
+      before,
+      "the shared loader's prompts are unchanged",
+    );
+    assert.equal(before.includes("leaked"), false);
+    assert.equal(
+      warnings.filter((warning) => warning.includes("resources_discover")).length,
+      1,
+      "dropped with a one-time warning",
+    );
+  });
+});

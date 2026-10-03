@@ -29,6 +29,9 @@ entry. An entry that names only other hosts is skipped. The one exception is an 
   throwing `tool_call` handler, which Pi itself does not isolate, cannot block a tool. The wrapping applies when Pi
   reads a handler, so it also covers handlers registered later through `pi.on` (for example from `session_start`), and
   the unsubscribe function `pi.on` returns keeps working.
+- **No discovered resources.** Resources an entry returns from `resources_discover` (skill, prompt, or theme paths) are
+  dropped with a one-time warning when the child uses a shared loader. Adding them would write them into the loader
+  every sibling and later child for that directory shares.
 - **Timing.** The registry is read when each child session is created, and entries load with the child's extensions,
   before `session_start`. The child's extensions are bound with `bindExtensions({})`, so `ctx.hasUI` is false.
 

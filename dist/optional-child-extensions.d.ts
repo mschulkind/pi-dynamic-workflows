@@ -81,7 +81,9 @@ export declare function reportOptionalLoadErrors(result: LoadExtensionsResult, o
  * discovers nothing else (in-memory settings, no skills, prompts, themes, or
  * context files). The child's extension runtime is that per-child loader's
  * fresh runtime, so extension actions such as `pi.appendEntry` stay bound to
- * this child. The base loader must carry no extensions of its own: theirs would
+ * this child. Resources an optional extension discovers (`resources_discover`)
+ * are dropped with a one-time warning rather than written into the shared
+ * loader. The base loader must carry no extensions of its own: theirs would
  * be bound to the base runtime, which this view replaces; such a base is
  * returned unchanged with a warning.
  */

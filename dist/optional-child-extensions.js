@@ -357,6 +357,13 @@ export function reportOptionalLoadErrors(result, optionalPaths) {
         }
     }
 }
+/** The view's `extendResources`: resources an optional extension discovers never reach the shared loader. */
+function dropExtendResources(paths) {
+    const count = (paths?.skillPaths?.length ?? 0) + (paths?.promptPaths?.length ?? 0) + (paths?.themePaths?.length ?? 0);
+    if (count === 0)
+        return;
+    warnOptionalChildExtension("optional child extension resources ignored: resources_discover results from an optional extension are not added to a shared loader");
+}
 /**
  * Give one child a view of an extension-free shared resource loader that also
  * carries the child's optional extensions, without giving up the sharing.
@@ -366,7 +373,9 @@ export function reportOptionalLoadErrors(result, optionalPaths) {
  * discovers nothing else (in-memory settings, no skills, prompts, themes, or
  * context files). The child's extension runtime is that per-child loader's
  * fresh runtime, so extension actions such as `pi.appendEntry` stay bound to
- * this child. The base loader must carry no extensions of its own: theirs would
+ * this child. Resources an optional extension discovers (`resources_discover`)
+ * are dropped with a one-time warning rather than written into the shared
+ * loader. The base loader must carry no extensions of its own: theirs would
  * be bound to the base runtime, which this view replaces; such a base is
  * returned unchanged with a warning.
  */
@@ -420,6 +429,12 @@ export async function withOptionalChildExtensions(base, optional, options) {
         get(target, key) {
             if (key === "getExtensions")
                 return view;
+            // The base is shared by every child for this cwd, and only optional
+            // extensions run in this view, so anything they discover through
+            // resources_discover would land in every sibling and later child.
+            // Observers do not add capabilities: drop it.
+            if (key === "extendResources")
+                return dropExtendResources;
             if (key === "reload") {
                 return async (...args) => {
                     await target.reload(...args);
