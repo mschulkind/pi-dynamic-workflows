@@ -27,9 +27,10 @@ test("the published Pi extension forwards through TypeScript to the compiled pay
   assert.equal(extensionPath, "extensions/workflow.ts");
   assert.ok(publishableFiles().includes(extensionPath));
   assert.ok(publishableFiles().includes("dist/pi-extension.js"));
+  assert.ok(publishableFiles().includes("dist/runtime-build.js"));
   assert.match(
     readFileSync(new URL(`../${extensionPath}`, import.meta.url), "utf8"),
-    /import\("\.\.\/dist\/pi-extension\.js"\)/,
+    /import\(\s*"\.\.\/dist\/pi-extension\.js\?workflowBuild=sha256:[a-f0-9]{64}"\s*\)/,
   );
 });
 

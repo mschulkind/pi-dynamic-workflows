@@ -14,13 +14,54 @@ export function coreRecordingActivation(runtime) {
         return "not_observed";
     }
 }
-/** A sink can be asynchronous; neither rejection nor a synchronous failure affects execution. */
-export function emitRequestObservation(sink, record) {
+/** Closed vocabulary only; these diagnostics are local logs, never request payloads. */
+const recordingHealthReasons = [
+    "enabled",
+    "disabled",
+    "missing_append_sink",
+    "invocation_observer_ready",
+    "message_observer_fallback",
+    "observer_initialization_failed",
+    "observer_callback_failed",
+    "append_failed",
+];
+export function reportRecordingHealth(report, reason) {
     try {
-        void Promise.resolve(sink?.(structuredClone(record))).catch(() => { });
+        report?.(reason);
     }
     catch {
-        /* diagnostic only */
+        /* diagnostics cannot fail execution */
+    }
+}
+/** One bounded message per reason per run, through the existing local log callback. */
+export function createRecordingHealthReporter(log) {
+    const seen = new Set();
+    return (reason) => {
+        if (!recordingHealthReasons.includes(reason) || seen.has(reason))
+            return;
+        seen.add(reason);
+        try {
+            log?.(`request recording: ${reason}`);
+        }
+        catch {
+            /* storage/logging may itself fail */
+        }
+    };
+}
+/** A sink can be asynchronous; neither rejection nor a synchronous failure affects execution. */
+export function emitRequestObservation(sink, record, health) {
+    try {
+        if (!sink) {
+            reportRecordingHealth(health, "missing_append_sink");
+            return;
+        }
+        void Promise.resolve(sink(structuredClone(record))).then((accepted) => {
+            if (accepted === false)
+                reportRecordingHealth(health, "append_failed");
+        }, () => reportRecordingHealth(health, "append_failed"));
+    }
+    catch {
+        reportRecordingHealth(health, "append_failed");
     }
 }
 function modelName(value) {
@@ -28,7 +69,7 @@ function modelName(value) {
         ? value
         : null;
 }
-export function createRequestObserver(identity, model, sink, activation = "not_observed") {
+export function createRequestObserver(identity, model, sink, activation = "not_observed", health) {
     let active;
     let invocation;
     let lastId = null;
@@ -43,7 +84,7 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
         active.timing.completionBoundary ??= "observer_close";
         if (aborted && active.outcome === "unknown")
             active.outcome = "aborted";
-        emitRequestObservation(sink, active);
+        emitRequestObservation(sink, active, health);
         lastId = active.observationId;
         active = undefined;
     };
@@ -132,10 +173,19 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
             },
         };
         retryOf = null;
-        emitRequestObservation(sink, active);
+        emitRequestObservation(sink, active, health);
     };
     return {
         close,
+        callbackFailure() {
+            reportRecordingHealth(health, "observer_callback_failed");
+        },
+        hookReady() {
+            reportRecordingHealth(health, "invocation_observer_ready");
+        },
+        hookFallback() {
+            reportRecordingHealth(health, "message_observer_fallback");
+        },
         beginInvocation(requestedModel) {
             try {
                 close(false);
@@ -149,6 +199,7 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
                 return invocation.id;
             }
             catch {
+                reportRecordingHealth(health, "observer_callback_failed");
                 return undefined;
             }
         },
@@ -158,7 +209,7 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
                     completed(message, "sdk_stream_result");
             }
             catch {
-                /* diagnostic only */
+                reportRecordingHealth(health, "observer_callback_failed");
             }
         },
         streamFailure(id) {
@@ -167,7 +218,7 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
                     active.outcome = "error";
             }
             catch {
-                /* diagnostic only */
+                reportRecordingHealth(health, "observer_callback_failed");
             }
         },
         event(event) {
@@ -203,7 +254,7 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
                 }
             }
             catch {
-                /* observations must not break agents */
+                reportRecordingHealth(health, "observer_callback_failed");
             }
         },
     };
@@ -212,8 +263,10 @@ export function createRequestObserver(identity, model, sink, activation = "not_o
  * return identity, callbacks, retry options, or consuming its iterator. result()
  * is the public final-result promise, independent of the SDK's stream consumer.
  */
-export function observeRequestInvocations(agent, observer) {
+function wrapRequestInvocations(agent, observer) {
     const original = agent.streamFunction;
+    if (typeof original !== "function")
+        throw new Error("Public invocation hook unavailable");
     const wrapped = function (...args) {
         const id = observer.beginInvocation(args[0]);
         try {
@@ -225,10 +278,10 @@ export function observeRequestInvocations(agent, observer) {
                         void response.result().then((message) => observer.streamResult(id, message), () => observer.streamFailure(id));
                     }
                     catch {
-                        /* observational failure does not fail the agent */
+                        observer.callbackFailure();
                     }
                 }, () => observer.streamFailure(id))
-                    .catch(() => { });
+                    .catch(() => observer.callbackFailure());
             }
             return stream;
         }
@@ -240,7 +293,34 @@ export function observeRequestInvocations(agent, observer) {
     };
     agent.streamFunction = wrapped;
     return () => {
-        if (agent.streamFunction === wrapped)
-            agent.streamFunction = original;
+        try {
+            if (agent.streamFunction === wrapped)
+                agent.streamFunction = original;
+        }
+        catch {
+            observer.callbackFailure();
+        }
     };
+}
+/** Unsupported public hooks retain the existing assistant-message fallback. */
+export function observeRequestInvocations(agent, observer) {
+    try {
+        const restore = wrapRequestInvocations(agent, observer);
+        observer.hookReady();
+        return restore;
+    }
+    catch {
+        observer.hookFallback();
+        return () => { };
+    }
+}
+/** Initialization is observational too; a rejected public hook cannot fail a child. */
+export function initializeRequestObserver(create, health) {
+    try {
+        return create();
+    }
+    catch {
+        reportRecordingHealth(health, "observer_initialization_failed");
+        return undefined;
+    }
 }

@@ -18,8 +18,10 @@ import type { WorkflowManager } from "./workflow-manager.js";
 export declare const WORKFLOW_EXTENSION_VERSION: string;
 export interface WorkflowReloadRuntime {
     cwd: string;
-    /** Package version that created this manager. Only an exact match is retained. */
+    /** Package version that created this manager. An exact version AND loaded-build match is retained. */
     extensionVersion: string;
+    /** Immutable identity captured by the graph that constructed the manager. */
+    runtimeBuildIdentity?: string;
     manager: WorkflowManager;
     effort: EffortState;
 }
@@ -54,9 +56,9 @@ export declare function handoffWorkflowRuntime(runtime: WorkflowReloadRuntime, t
  */
 export declare function takeWorkflowRuntime(cwd?: string): WorkflowReloadRuntime | undefined;
 /**
- * Claim a staged runtime and compare its package version with this extension
- * generation. Any package update falls back to a fresh manager; only
- * replacements within the exact same installed version retain live workflow
+ * Claim a staged runtime and compare its package version and loaded build with this
+ * generation. Changed or legacy builds fall back to a fresh manager; only
+ * replacements within the exact same loaded build retain live workflow
  * state (and the delivery listener / pending queue on that manager).
  *
  * Independent of cwd: the factory only knows process.cwd(), which may differ
@@ -88,3 +90,5 @@ export declare const SESSION_REPLACEMENT_REASONS: Set<string>;
  * staged. `cwd` is ignored for the slot model (kept for call-site compatibility).
  */
 export declare function discardWorkflowRuntime(_cwd?: string, runtime?: WorkflowReloadRuntime): void;
+/** Reject a cached compiled graph before frontend activation; preserve journal recovery. */
+export declare function rejectLoadedWorkflowRuntime(): void;

@@ -3,7 +3,7 @@
  */
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workflowProjectPaths } from "./workflow-paths.js";
+import { workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 export function createWorkflowLogger(options = {}) {
     const logs = [];
     const persistLogs = options.persist ?? true;

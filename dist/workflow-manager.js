@@ -3,14 +3,14 @@
  */
 import { EventEmitter } from "node:events";
 import { isDeepStrictEqual } from "node:util";
-import { createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
-import { ChildApprovalScope } from "./child-approval.js";
-import { MAX_AGENTS_PER_RUN } from "./config.js";
-import { emptyFleetSummary, preview, recomputeWorkflowSnapshot, } from "./display.js";
-import { isProviderUsageLimit, WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode } from "./errors.js";
-import { agentHasNonTerminalStatus, createRunPersistence, generateRunId, INTERRUPTED_AGENT_CAUSE, sanitizeAutoResumeAttempts, settleInterruptedPersistedAgents, settleNonTerminalPersistedAgents, terminalRunInterruptCause, VALID_PERSISTED_AGENT_STATUSES, } from "./run-persistence.js";
-import { runSummary } from "./run-record-store.js";
-import { cloneDurableJsonValue, parseWorkflowScript, runWorkflow, } from "./workflow.js";
+import { createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { ChildApprovalScope } from "./child-approval.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { MAX_AGENTS_PER_RUN } from "./config.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { emptyFleetSummary, preview, recomputeWorkflowSnapshot, } from "./display.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { isProviderUsageLimit, WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { agentHasNonTerminalStatus, createRunPersistence, generateRunId, INTERRUPTED_AGENT_CAUSE, sanitizeAutoResumeAttempts, settleInterruptedPersistedAgents, settleNonTerminalPersistedAgents, terminalRunInterruptCause, VALID_PERSISTED_AGENT_STATUSES, } from "./run-persistence.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { runSummary } from "./run-record-store.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { cloneDurableJsonValue, parseWorkflowScript, runWorkflow, } from "./workflow.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 // A human's checkpoint reply fails with "still settling" when the pause tail
 // (a full-state persist on a slow/synced disk) exceeds this cap (audit2 #19).
 // 10s bounds the attach wait without flaking on Dropbox-hosted projects.
@@ -564,7 +564,10 @@ export class WorkflowManager extends EventEmitter {
                 mainModel: this.mainModel,
                 modelRegistry: this.modelRegistry,
                 recordAgentRequests: this.recordAgentRequests,
-                onRequestObservation: (record) => this.persistence.appendObservation?.(managed.runId, record),
+                requestRootRunId: managed.runId,
+                onRequestObservation: typeof this.persistence.appendObservation === "function"
+                    ? (record) => this.persistence.appendObservation?.(managed.runId, record)
+                    : undefined,
                 persistAgentSessions: this.persistAgentSessions,
                 inheritMainModel: this.inheritMainModel,
                 parentSessionFile: managed.parentSessionFile,

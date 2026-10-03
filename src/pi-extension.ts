@@ -1,3 +1,8 @@
+import { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js";
+
+export { rejectLoadedWorkflowRuntime } from "./extension-reload.js";
+export { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js";
+
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -199,6 +204,7 @@ export default function extension(pi: ExtensionAPI) {
     const runtime: WorkflowReloadRuntime = {
       cwd,
       extensionVersion: WORKFLOW_EXTENSION_VERSION,
+      runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
       manager,
       effort,
     };
@@ -271,6 +277,7 @@ export default function extension(pi: ExtensionAPI) {
       const stranded: WorkflowReloadRuntime = {
         cwd: manager.getCwd(),
         extensionVersion: WORKFLOW_EXTENSION_VERSION,
+        runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
         manager,
         effort,
       };

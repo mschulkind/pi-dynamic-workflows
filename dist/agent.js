@@ -3,17 +3,17 @@ import { realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAgentSession, createCodingTools, DefaultPackageManager, DefaultResourceLoader, getAgentDir, ModelRegistry, SessionManager, SettingsManager, } from "@earendil-works/pi-coding-agent";
 import { Check, Convert } from "typebox/value";
-import { compactAgentHistory } from "./agent-history.js";
-import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
-import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js";
-import { pinChildCacheRetention } from "./child-cache-retention.js";
-import { coreRecordingActivation, createRequestObserver, observeRequestInvocations, } from "./request-recording.js";
-import { applyToolPolicy } from "./agent-registry.js";
-import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js";
-import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js";
-import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js";
-import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js";
-import { createStructuredOutputTool } from "./structured-output.js";
+import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 const LIVE_USAGE_EMIT_INTERVAL_MS = 250;
 /**
  * Find a JSON object/array in free-form text: a fenced ```json block if present,
@@ -1173,8 +1173,10 @@ export class WorkflowAgent {
             lastProgressUsage = usage;
             options.onUsageProgress(usage);
         };
-        const requestObserver = options.requestIdentity && options.onRequestObservation
-            ? createRequestObserver({ ...options.requestIdentity, sessionId: effectiveSessionManager.getSessionId() }, session.model, options.onRequestObservation, coreRecordingActivation(this.sessionOptions.modelRuntime ?? modelRuntime))
+        const requestIdentity = options.requestIdentity;
+        const requestSink = options.onRequestObservation;
+        const requestObserver = requestIdentity && requestSink
+            ? initializeRequestObserver(() => createRequestObserver({ ...requestIdentity, sessionId: effectiveSessionManager.getSessionId() }, session.model, requestSink, coreRecordingActivation(this.sessionOptions.modelRuntime ?? modelRuntime), options.onRequestRecordingHealth), options.onRequestRecordingHealth)
             : undefined;
         let removeRequestInvocationObserver;
         const emitSessionProgress = (event) => {
@@ -1222,12 +1224,7 @@ export class WorkflowAgent {
                     turnMessages.push(event.message);
             });
             if (requestObserver) {
-                try {
-                    removeRequestInvocationObserver = observeRequestInvocations(session.agent, requestObserver);
-                }
-                catch {
-                    /* SDKs without a writable public hook retain message-only evidence */
-                }
+                removeRequestInvocationObserver = observeRequestInvocations(session.agent, requestObserver);
             }
             await session.prompt(this.buildPrompt(prompt, options, Boolean(options.schema)));
             if (options.signal?.aborted)

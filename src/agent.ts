@@ -26,7 +26,9 @@ import { pinChildCacheRetention } from "./child-cache-retention.js";
 import {
   coreRecordingActivation,
   createRequestObserver,
+  initializeRequestObserver,
   observeRequestInvocations,
+  type RecordingHealthReporter,
   type RequestIdentity,
   type RequestSink,
 } from "./request-recording.js";
@@ -644,6 +646,8 @@ function usageFromSessionProgress(stats: SessionUsageStats, event: AgentSessionE
 export interface AgentRunOptions<TSchemaDef extends TSchema | undefined = undefined> {
   requestIdentity?: Omit<RequestIdentity, "sessionId">;
   onRequestObservation?: RequestSink;
+  /** Metadata-only local diagnostics, never included in model context. */
+  onRequestRecordingHealth?: RecordingHealthReporter;
   /** Host workflow attribution, not an approval authority selector. */
   runId?: string;
   label?: string;
@@ -1543,13 +1547,20 @@ export class WorkflowAgent {
       lastProgressUsage = usage;
       options.onUsageProgress(usage);
     };
+    const requestIdentity = options.requestIdentity;
+    const requestSink = options.onRequestObservation;
     const requestObserver =
-      options.requestIdentity && options.onRequestObservation
-        ? createRequestObserver(
-            { ...options.requestIdentity, sessionId: effectiveSessionManager.getSessionId() },
-            session.model,
-            options.onRequestObservation,
-            coreRecordingActivation(this.sessionOptions.modelRuntime ?? modelRuntime),
+      requestIdentity && requestSink
+        ? initializeRequestObserver(
+            () =>
+              createRequestObserver(
+                { ...requestIdentity, sessionId: effectiveSessionManager.getSessionId() },
+                session.model,
+                requestSink,
+                coreRecordingActivation(this.sessionOptions.modelRuntime ?? modelRuntime),
+                options.onRequestRecordingHealth,
+              ),
+            options.onRequestRecordingHealth,
           )
         : undefined;
     let removeRequestInvocationObserver: (() => void) | undefined;
@@ -1596,11 +1607,7 @@ export class WorkflowAgent {
       });
 
       if (requestObserver) {
-        try {
-          removeRequestInvocationObserver = observeRequestInvocations(session.agent, requestObserver);
-        } catch {
-          /* SDKs without a writable public hook retain message-only evidence */
-        }
+        removeRequestInvocationObserver = observeRequestInvocations(session.agent, requestObserver);
       }
       await session.prompt(this.buildPrompt(prompt, options as AgentRunOptions<any>, Boolean(options.schema)));
 

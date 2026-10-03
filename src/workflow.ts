@@ -22,7 +22,7 @@ import { WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode, wr
 import { createWorkflowLogger } from "./logger.js";
 import { parseModelRoutingFromMeta, resolveModelForPhase } from "./model-routing.js";
 import { validateThinkingLevel } from "./model-spec.js";
-import { emitRequestObservation, type RequestSink } from "./request-recording.js";
+import { createRecordingHealthReporter, emitRequestObservation, type RequestSink } from "./request-recording.js";
 import { createRunPersistence, type PersistedRunState } from "./run-persistence.js";
 import { createAgentStoreTools, SharedStore } from "./shared-store.js";
 import { WORKFLOW_CAPABILITY_CONTRACT, type WorkflowRuntimeImplementations } from "./workflow-capability-contract.js";
@@ -593,26 +593,23 @@ export async function runWorkflow<T = unknown>(
     options.onRequestObservation ??
     (requestPersistence
       ? (record) => {
-          try {
-            if (!evidenceState) {
-              const initialState = requestPersistence.load(requestRootRunId) ?? {
-                runId: requestRootRunId,
-                workflowName: "request-evidence",
-                script: "",
-                status: "running",
-                phases: [],
-                agents: [],
-                logs: [],
-                startedAt: new Date(started).toISOString(),
-                updatedAt: new Date().toISOString(),
-              };
-              requestPersistence.save(initialState);
-              evidenceState = initialState;
-            }
-            requestPersistence.appendObservation?.(requestRootRunId, record);
-          } catch {
-            /* evidence is best-effort */
+          // The shared emitter catches write failures and reports a closed reason.
+          if (!evidenceState) {
+            const initialState = requestPersistence.load(requestRootRunId) ?? {
+              runId: requestRootRunId,
+              workflowName: "request-evidence",
+              script: "",
+              status: "running",
+              phases: [],
+              agents: [],
+              logs: [],
+              startedAt: new Date(started).toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            requestPersistence.save(initialState);
+            evidenceState = initialState;
           }
+          return requestPersistence.appendObservation?.(requestRootRunId, record);
         }
       : undefined);
   const baseCwd = options.cwd ?? process.cwd();
@@ -627,6 +624,9 @@ export async function runWorkflow<T = unknown>(
     persist: options.persistLogs ?? true,
     onLog: options.onLog,
   });
+
+  const recordingHealth = createRecordingHealthReporter((message) => logger.log(message));
+  recordingHealth(options.recordAgentRequests === false ? "disabled" : requestSink ? "enabled" : "missing_append_sink");
 
   const state: RuntimeState = {
     logs: [],
@@ -983,20 +983,24 @@ export async function runWorkflow<T = unknown>(
     if (!shared.resumeBarrierReached && hashMatches && !cachedEmptyOutput && callIndex < state.firstMiss) {
       if (options.recordAgentRequests !== false) {
         const stableWorkId = `${deltaKey}:${callHash}`;
-        emitRequestObservation(requestSink, {
-          schemaVersion: 1,
-          recordKind: "workflow_request_replay",
-          recordId: randomUUID(),
-          source: "pi-dynamic-workflows",
-          accountingRole: "non_request_provenance",
-          rootRunId: requestRootRunId,
-          frameRunId: runId,
-          executionId: requestExecutionId,
-          callId: deltaKey,
-          stableWorkId,
-          observedAtUtc: new Date().toISOString(),
-          evidenceReference: { rootRunId: requestRootRunId, callId: deltaKey, stableWorkId },
-        });
+        emitRequestObservation(
+          requestSink,
+          {
+            schemaVersion: 1,
+            recordKind: "workflow_request_replay",
+            recordId: randomUUID(),
+            source: "pi-dynamic-workflows",
+            accountingRole: "non_request_provenance",
+            rootRunId: requestRootRunId,
+            frameRunId: runId,
+            executionId: requestExecutionId,
+            callId: deltaKey,
+            stableWorkId,
+            observedAtUtc: new Date().toISOString(),
+            evidenceReference: { rootRunId: requestRootRunId, callId: deltaKey, stableWorkId },
+          },
+          recordingHealth,
+        );
       }
       // Replay preserves the journaled model and historical session identity.
       const replayModel = cached.model ?? displayModel;
@@ -1157,6 +1161,7 @@ export async function runWorkflow<T = unknown>(
                       childAttemptOrdinal: attempt,
                     },
               onRequestObservation: options.recordAgentRequests === false ? undefined : requestSink,
+              onRequestRecordingHealth: options.recordAgentRequests === false ? undefined : recordingHealth,
               runId,
               label,
               // Identifiable name for persisted sessions (persistAgentSessions).

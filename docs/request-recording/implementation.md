@@ -1,14 +1,39 @@
 ---
 status: in-review
 stage: BUILT
-next: "Publish on the host and inspect newly recorded workflow requests"
+next: "Human rollout and authorized real-work activation/hydration verification"
 ---
 
 # Workflow children retain request evidence outside model context
 
-**Status:** 2026-10-04, implemented after independent review and locally verified with development, installed, and built fork SDKs through faux providers. Not deployed or verified against a paid provider. See [QA](qa.md) for landing checks.
+**Status:** Activation repair implemented on `87654de` after a real production run retained zero committed observations. Prior hermetic verification did not prove live activation. The independent partial-cache finding is repaired and locally verified, including the full-suite sweep plus focused fixture repairs and installed/built SDK matrix. This repair is not deployed; see [QA](qa.md) for exact results and deployment limits.
 
 This is the single source of truth for this change's scope and limits. See [research](research.md), [plan](plan.md), [tasks](tasks.md), and [QA](qa.md) for provenance and verification.
+
+## Activation and local diagnostics
+
+**Loaded-build identity** *(coined here)* is an immutable literal digest shipped with the compiled runtime and captured when that module graph is evaluated. It identifies executable workflow code, not a later Git revision, disk reread, dependency version, or proof of provider activation. The build hashes the runtime package manifest and sorted, length-framed fresh compiled JavaScript modules, excluding the identity module itself, with a versioned digest format. Hashing precedes URL stamping, so neither generated identity nor generated URL enters its own input. Identical rebuilds are byte-identical. Source execution uses a distinct identity per evaluated source graph, not the last prebuilt artifact.
+
+A live manager is retained only when both package version and loaded-build identity match. Same-build replacement preserves the manager, promises, effort object, and pending-delivery owner. Missing legacy identities and changed builds use existing pause/journal recovery, not reconfiguration of old implementations. Cwd checks, replacement-reason checks, TTL expiry, and version checks still apply. Updating/reloading may pause affected work; resume it from `/workflows`, rather than treating it as abandoned.
+
+The frontend and **every internal compiled import/re-export** use the same digest query in their native ESM module URLs, including the runtime package manifest. Node keys its ESM cache by URL; a changed complete build therefore gets a separate dependency graph rather than fresh identity metadata attached to independently cached old manager/observer/persistence implementations. An unchanged build uses the identical URLs and retains the identical graph. External public SDK imports are not rewritten. No source code, Git revision, or later disk read is used to relabel a loaded producer.
+
+The frontend also compares its shipped identity to the imported graph's literal. A malformed/stale frontend mismatch still rejects activation, pauses a staged runtime through its existing recovery helper, and asks for a Pi process restart. Legacy graphs lacking that helper rely on the existing handoff expiry pause. Ordinary complete same-version updates can load the new isolated graph, pause incompatible work, and recover from its journal. Updates are not made atomic by this mechanism: do not update package files concurrently with loading them. Old ESM graphs remain cached until process exit; restarting Pi after repeated updates releases that memory.
+
+Recording emits at most one local diagnostic per reason per workflow frame/execution, through the existing logger and manager UI log stream. Managed logs are run-scoped and retained with normal snapshots when storage works; direct embedding uses the normal run log file/callback. Diagnostics bypass model-facing workflow result logs, prompts, shared-store tools, and child histories. No new settings switch or scanner schema is added.
+
+| Reason | Meaning |
+| :--- | :--- |
+| `enabled` | Recording requested and a sink is present; not proof of a committed record. |
+| `disabled` | Explicit opt-out. |
+| `missing_append_sink` | Unavailable: the injected persistence/embedding lacks a usable sink. |
+| `invocation_observer_ready` | Public SDK invocation wrapper installed. |
+| `message_observer_fallback` | Public invocation hook unavailable/unwritable; message observations remain available. |
+| `observer_initialization_failed` | Observer construction failed; agent execution remains independent. |
+| `observer_callback_failed` | An observation callback failed; evidence may have gaps. |
+| `append_failed` | Sink threw, rejected, or explicitly returned false; evidence may have gaps. |
+
+These are a closed vocabulary, never arbitrary exception text, URLs, credentials, prompts/completions, or unrestricted usage. An injected runner can forward the optional `AgentRunOptions.onRequestRecordingHealth` callback alongside its observation sink. Healthy zero observations can mean no observed SDK invocation, a custom runner not emitting observations, or unsupported coverage; `enabled` does not resolve that ambiguity. Missing health on older runs is **UNKNOWN**, not enabled or disabled. Logging itself is best-effort: storage failure is nonfatal and cannot guarantee durable diagnostics, and repeated failures are not counted or reconstructed.
 
 ## Observation boundary and identity
 

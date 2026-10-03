@@ -1,10 +1,10 @@
-import packageJson from "../package.json" with { type: "json" };
-import { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js";
-import { WorkflowCapabilityContractError } from "./errors.js";
+import packageJson from "../package.json?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328" with { type: "json" };
+import { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { WorkflowCapabilityContractError } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 /** Re-exported capability domains used by contract consumers. */
-export { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js";
+export { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 /** Re-exported contract failure type retained for existing consumers. */
-export { WorkflowCapabilityContractError } from "./errors.js";
+export { WorkflowCapabilityContractError } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 const REFERENCE_PATH = "skills/workflow-authoring/references/capability-details.md";
 const PRESENT_AT = { kind: "present-at", version: packageJson.version };
 const noOptions = [];

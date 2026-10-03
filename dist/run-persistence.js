@@ -3,12 +3,12 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { WorkflowErrorCode } from "./errors.js";
-import { ensureDir as ensureDirFs, listJsonFilesSafe, resolvePersistenceFs, unlinkIfExistsSafe, } from "./fs-persistence.js";
-import { settleInterruptedPersistedAgents } from "./run-agent-settlement.js";
-import { createRunRecordStore } from "./run-record-store.js";
-export { agentHasNonTerminalStatus, INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents, } from "./run-agent-settlement.js";
-import { workflowProjectPaths } from "./workflow-paths.js";
+import { WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { ensureDir as ensureDirFs, listJsonFilesSafe, resolvePersistenceFs, unlinkIfExistsSafe, } from "./fs-persistence.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createRunRecordStore } from "./run-record-store.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+export { agentHasNonTerminalStatus, INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents, } from "./run-agent-settlement.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 /**
  * Sanitize a persisted/incoming auto-resume attempt counter: corrupt or
  * foreign values (non-number, NaN, Infinity, negative, non-integer) become

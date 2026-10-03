@@ -3,7 +3,7 @@ import type { Static, TSchema } from "typebox";
 import { type AgentHistoryEntry } from "./agent-history.js";
 import { type AgentUsage } from "./agent-usage.js";
 import { ChildApprovalScope } from "./child-approval.js";
-import { type RequestIdentity, type RequestSink } from "./request-recording.js";
+import { type RecordingHealthReporter, type RequestIdentity, type RequestSink } from "./request-recording.js";
 export type { AgentUsage } from "./agent-usage.js";
 import { type ModelThinkingLevel } from "./model-spec.js";
 import { type ModelTierConfig, type RankableModel } from "./model-tier-config.js";
@@ -212,6 +212,8 @@ export declare function usageFromStats(stats: {
 export interface AgentRunOptions<TSchemaDef extends TSchema | undefined = undefined> {
     requestIdentity?: Omit<RequestIdentity, "sessionId">;
     onRequestObservation?: RequestSink;
+    /** Metadata-only local diagnostics, never included in model context. */
+    onRequestRecordingHealth?: RecordingHealthReporter;
     /** Host workflow attribution, not an approval authority selector. */
     runId?: string;
     label?: string;

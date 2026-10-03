@@ -1,4 +1,4 @@
-import { runSummary } from "./run-record-store.js";
+import { runSummary } from "./run-record-store.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 // Process-local optional integration with pi-subagents. Both packages are
 // installed independently, so neither can require the other's module path.
 const SLOT = Symbol.for("pi.mixed-work.fleet.v1");

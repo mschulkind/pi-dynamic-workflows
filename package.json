@@ -31,7 +31,7 @@
     "check:scripts": "tsc -p tsconfig.scripts.json",
     "format": "biome format --write .",
     "lint": "biome lint .",
-    "build": "tsc",
+    "build": "tsc && tsx scripts/stamp-runtime-build.ts",
     "docs:generate": "tsx scripts/generate-workflow-capabilities.ts",
     "docs:check": "tsx scripts/generate-workflow-capabilities.ts --check",
     "context:generate": "tsx scripts/generate-workflow-context-measurement.ts",

@@ -12,6 +12,7 @@ import {
   WORKFLOW_EXTENSION_VERSION,
   type WorkflowReloadRuntime,
 } from "../src/extension-reload.js";
+import { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "../src/runtime-build.js";
 import { WorkflowManager } from "../src/workflow-manager.js";
 import { withFakeHomeAsync } from "./helpers/fake-home.js";
 
@@ -55,6 +56,7 @@ function runtime(cwd: string): WorkflowReloadRuntime {
   return {
     cwd,
     extensionVersion: WORKFLOW_EXTENSION_VERSION,
+    runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
     manager: { marker: cwd } as unknown as WorkflowReloadRuntime["manager"],
     effort: { level: "high" },
   };
@@ -173,6 +175,7 @@ test(
     const value: WorkflowReloadRuntime = {
       cwd,
       extensionVersion: WORKFLOW_EXTENSION_VERSION,
+      runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
       manager: manager as unknown as WorkflowReloadRuntime["manager"],
       effort: { level: "high" },
     };
@@ -224,6 +227,7 @@ test("handoff staged under a session project cwd is claimable via process.cwd() 
   const value: WorkflowReloadRuntime = {
     cwd: project,
     extensionVersion: WORKFLOW_EXTENSION_VERSION,
+    runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
     manager: mgr as unknown as WorkflowReloadRuntime["manager"],
     effort: { level: "high" },
   };
@@ -242,6 +246,7 @@ test("overwriting a staged handoff pauses the displaced runtime's live runs", ()
   const first: WorkflowReloadRuntime = {
     cwd: `/tmp/reload-handoff-${process.pid}-overwrite-a`,
     extensionVersion: WORKFLOW_EXTENSION_VERSION,
+    runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
     manager: {
       listLiveRuns: () => [{ runId: "running-a", status: "running" }],
       listRuns: () => [],

@@ -1,6 +1,6 @@
-import { CapabilityClassification, CapabilitySupport, DiscoveryPlacement, WorkflowAuthoringProtection, } from "./enums.js";
-import { WORKFLOW_CAPABILITY_DEFINITION } from "./workflow-capability-contract.js";
-import { COMPREHENSION_SCENARIOS } from "./workflow-comprehension.js";
+import { CapabilityClassification, CapabilitySupport, DiscoveryPlacement, WorkflowAuthoringProtection, } from "./enums.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { WORKFLOW_CAPABILITY_DEFINITION } from "./workflow-capability-contract.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { COMPREHENSION_SCENARIOS } from "./workflow-comprehension.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 /** Scenario identifiers that release checks may accept as provider-backed evidence. */
 export const WORKFLOW_COMPREHENSION_SCENARIO_IDS = COMPREHENSION_SCENARIOS.map(({ id }) => id);
 /** Mixed guidance files that require explicit acceptance while behavioral coverage remains partial. */

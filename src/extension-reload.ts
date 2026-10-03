@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import packageJson from "../package.json" with { type: "json" };
 import type { EffortState } from "./effort-command.js";
+import { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js";
 import type { WorkflowManager } from "./workflow-manager.js";
 
 /**
@@ -22,8 +23,10 @@ export const WORKFLOW_EXTENSION_VERSION = packageJson.version;
 
 export interface WorkflowReloadRuntime {
   cwd: string;
-  /** Package version that created this manager. Only an exact match is retained. */
+  /** Package version that created this manager. An exact version AND loaded-build match is retained. */
   extensionVersion: string;
+  /** Immutable identity captured by the graph that constructed the manager. */
+  runtimeBuildIdentity?: string;
   manager: WorkflowManager;
   effort: EffortState;
 }
@@ -133,9 +136,9 @@ export function takeWorkflowRuntime(cwd?: string): WorkflowReloadRuntime | undef
 }
 
 /**
- * Claim a staged runtime and compare its package version with this extension
- * generation. Any package update falls back to a fresh manager; only
- * replacements within the exact same installed version retain live workflow
+ * Claim a staged runtime and compare its package version and loaded build with this
+ * generation. Changed or legacy builds fall back to a fresh manager; only
+ * replacements within the exact same loaded build retain live workflow
  * state (and the delivery listener / pending queue on that manager).
  *
  * Independent of cwd: the factory only knows process.cwd(), which may differ
@@ -145,7 +148,8 @@ export function takeWorkflowRuntime(cwd?: string): WorkflowReloadRuntime | undef
 export function claimWorkflowRuntime(_cwd?: string): WorkflowRuntimeClaim {
   const runtime = takeWorkflowRuntime(); // process-wide slot
   if (!runtime) return {};
-  return runtime.extensionVersion === WORKFLOW_EXTENSION_VERSION
+  return runtime.extensionVersion === WORKFLOW_EXTENSION_VERSION &&
+    runtime.runtimeBuildIdentity === WORKFLOW_RUNTIME_BUILD_IDENTITY
     ? { compatible: runtime }
     : { versionMismatch: runtime };
 }
@@ -201,4 +205,10 @@ export function discardWorkflowRuntime(_cwd?: string, runtime?: WorkflowReloadRu
   if (!slot) return;
   if (runtime && slot.runtime !== runtime) return;
   clearSlot(slot);
+}
+
+/** Reject a cached compiled graph before frontend activation; preserve journal recovery. */
+export function rejectLoadedWorkflowRuntime(): void {
+  const runtime = takeWorkflowRuntime();
+  if (runtime) pauseStrandedWorkflowRuntime(runtime);
 }

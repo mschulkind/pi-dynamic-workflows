@@ -969,7 +969,11 @@ export class WorkflowManager extends EventEmitter {
         mainModel: this.mainModel,
         modelRegistry: this.modelRegistry,
         recordAgentRequests: this.recordAgentRequests,
-        onRequestObservation: (record) => this.persistence.appendObservation?.(managed.runId, record),
+        requestRootRunId: managed.runId,
+        onRequestObservation:
+          typeof this.persistence.appendObservation === "function"
+            ? (record) => this.persistence.appendObservation?.(managed.runId, record)
+            : undefined,
         persistAgentSessions: this.persistAgentSessions,
         inheritMainModel: this.inheritMainModel,
         parentSessionFile: managed.parentSessionFile,

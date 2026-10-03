@@ -1,7 +1,7 @@
 ---
 status: in-review
 stage: BUILT
-next: "Resolve the verification fixture Git boundary; see QA before continuing"
+next: "Human rollout and authorized real-work verification; see QA"
 ---
 
 # Reuse workflow persistence rather than recording in prompts
@@ -30,3 +30,12 @@ next: "Resolve the verification fixture Git boundary; see QA before continuing"
 2. Add observer plus persistence delta; pass focused recording tests and no-emit typecheck.
 3. Wire default-on settings, call attribution, and replay; verify real SDK paths and aggregate regressions.
 4. Run targeted quality checks, document evidence, leave source uncommitted for review. Full gates and tracked build verification follow fixes to review findings.
+
+
+## Coherent activation repair on current main
+
+1. Reproduce incompatible same-version retention and silent append/observer failures first, retaining failed-before-fixed logs.
+2. Stamp the compiled graph with [loaded-build identity](implementation.md#activation-and-local-diagnostics), preserve same-build handoff, and reuse existing incompatible-runtime pause/journal recovery for legacy/changed builds. Isolate every internal compiled dependency URL, not only the identity module, so partial caches cannot be mislabeled; retain a mismatch fallback.
+3. Reuse the observation emitter and existing local logger for closed recording-health reasons; report unsupported sinks, initialization/callback failures, and thrown/rejected/false appends without leaking errors into prompts.
+4. Verify realistic frontend adoption/fallback and local faux-SDK recording, opt-out, accounting, and handoff safety. Fixture HOME/TMPDIR belong under `/tmp` outside every Git repository; durable evidence belongs under the workspace durable directory.
+5. Implementation left source and tracked build uncommitted for review. The authorized verification phase repairs independent findings, runs the full landing gate and faux-SDK matrix, and lands one coherent commit. Host rollout/live validation remain outside this task.

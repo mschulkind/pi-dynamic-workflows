@@ -15,8 +15,11 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { WorkflowAgent } from "../dist/agent.js";
-import { ChildApprovalScope } from "../dist/child-approval.js";
+import { WorkflowAgent } from "../dist/index.js";
+import { compiledModuleUrl } from "./helpers/compiled-module.js";
+
+const { ChildApprovalScope } = await import(compiledModuleUrl("child-approval.js"));
+
 import { withFakeHomeAsync } from "./helpers/fake-home.js";
 
 // Deliberately imports the current gate, not a simulated bridge. CI can supply

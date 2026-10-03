@@ -20,7 +20,7 @@
  * and its own bookkeeping (in-memory, best-effort persisted) — it does not
  * rely on manager.stop(), which only operates on in-memory runs.
  */
-import { sanitizeAutoResumeAttempts } from "./run-persistence.js";
+import { sanitizeAutoResumeAttempts } from "./run-persistence.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 const DEFAULT_MAX_REFUSALS = 10;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_MIN_DELAY_MS = 60_000;

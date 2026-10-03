@@ -5,7 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { createCodingTools, ModelRegistry, ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
-import { WorkflowAgent } from "../dist/agent.js";
+import { WorkflowAgent } from "../dist/index.js";
+import { compiledModuleUrl } from "./helpers/compiled-module.js";
 import { withFakeHomeAsync } from "./helpers/fake-home.js";
 
 const slot = Symbol.for("@mschulkind/pi-child-approval");
@@ -98,7 +99,9 @@ test("original SDK child bash probe is blocked automatically with empty middlewa
 
 import { DefaultResourceLoader, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { ChildApprovalScope } from "../dist/child-approval.js";
+
+type ChildApprovalScope = import("../dist/child-approval.js").ChildApprovalScope;
+const { ChildApprovalScope } = await import(compiledModuleUrl("child-approval.js"));
 
 type Request = {
   toolName: string;
@@ -578,7 +581,7 @@ test("cancellation closes a pending guard once and prevents execution", async ()
     }
   }));
 
-import { WorkflowManager } from "../dist/workflow-manager.js";
+import { WorkflowManager } from "../dist/index.js";
 
 test("manager automatically propagates actual parent identity into nested workflow children", async () =>
   fixture(async (f) => {

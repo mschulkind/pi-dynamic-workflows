@@ -15,9 +15,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { listAvailableModels } from "./agent.js";
-import { MODEL_TIERS_FILE } from "./config.js";
-import { workflowProjectPaths } from "./workflow-paths.js";
+import { listAvailableModels } from "./agent.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { MODEL_TIERS_FILE } from "./config.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 // ---------------------------------------------------------------------------
 // Configuration path
 // ---------------------------------------------------------------------------

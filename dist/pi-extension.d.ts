@@ -1,3 +1,5 @@
+export { rejectLoadedWorkflowRuntime } from "./extension-reload.js";
+export { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js";
 import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 export { installHostSessionCapture } from "./task-panel.js";
 /**

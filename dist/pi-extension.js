@@ -1,25 +1,28 @@
+import { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+export { rejectLoadedWorkflowRuntime } from "./extension-reload.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+export { WORKFLOW_RUNTIME_BUILD_IDENTITY } from "./runtime-build.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { createCodingTools } from "@earendil-works/pi-coding-agent";
-import { registerBuiltinWorkflows } from "./builtin-commands.js";
-import { createEffortState, registerEffortCommand } from "./effort-command.js";
-import { claimWorkflowRuntime, discardWorkflowRuntime, handoffWorkflowRuntime, pauseStrandedWorkflowRuntime, SESSION_REPLACEMENT_REASONS, WORKFLOW_EXTENSION_VERSION, } from "./extension-reload.js";
-import { installMixedFleet } from "./mixed-fleet.js";
-import { registerAllSavedWorkflows } from "./saved-commands.js";
-import { bindSessionDelivery, dropSessionDelivery, installResultDelivery, installTaskPanel, suspendResultDelivery, } from "./task-panel.js";
-import { UsageLimitScheduler } from "./usage-limit-scheduler.js";
-import { createWebTools } from "./web-tools.js";
-import { registerWorkflowCommands } from "./workflow-commands.js";
-import { createWorkflowControlTool } from "./workflow-control-tool.js";
-import { installWorkflowKeywordArming } from "./workflow-editor.js";
-import { WorkflowManager } from "./workflow-manager.js";
-import { createWorkflowStorage } from "./workflow-saved.js";
-import { loadWorkflowSettings, saveWorkflowSettingsForCwd } from "./workflow-settings.js";
-import { createWorkflowTool } from "./workflow-tool.js";
-import { openWorkflowNavigator } from "./workflow-ui.js";
-import { registerWorkflowModelsCommand } from "./workflows-models-command.js";
-export { installHostSessionCapture } from "./task-panel.js";
+import { registerBuiltinWorkflows } from "./builtin-commands.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createEffortState, registerEffortCommand } from "./effort-command.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { claimWorkflowRuntime, discardWorkflowRuntime, handoffWorkflowRuntime, pauseStrandedWorkflowRuntime, SESSION_REPLACEMENT_REASONS, WORKFLOW_EXTENSION_VERSION, } from "./extension-reload.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { installMixedFleet } from "./mixed-fleet.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { registerAllSavedWorkflows } from "./saved-commands.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { bindSessionDelivery, dropSessionDelivery, installResultDelivery, installTaskPanel, suspendResultDelivery, } from "./task-panel.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { UsageLimitScheduler } from "./usage-limit-scheduler.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createWebTools } from "./web-tools.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { registerWorkflowCommands } from "./workflow-commands.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createWorkflowControlTool } from "./workflow-control-tool.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { installWorkflowKeywordArming } from "./workflow-editor.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { WorkflowManager } from "./workflow-manager.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createWorkflowStorage } from "./workflow-saved.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { loadWorkflowSettings, saveWorkflowSettingsForCwd } from "./workflow-settings.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { createWorkflowTool } from "./workflow-tool.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { openWorkflowNavigator } from "./workflow-ui.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+import { registerWorkflowModelsCommand } from "./workflows-models-command.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
+export { installHostSessionCapture } from "./task-panel.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 /**
  * Bound for the read-only session-header probe (first line only). Independent of
  * pi's own ~1MiB session scan — we only need the header and keep the read small.
@@ -177,6 +180,7 @@ export default function extension(pi) {
         const runtime = {
             cwd,
             extensionVersion: WORKFLOW_EXTENSION_VERSION,
+            runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
             manager,
             effort,
         };
@@ -243,6 +247,7 @@ export default function extension(pi) {
             const stranded = {
                 cwd: manager.getCwd(),
                 extensionVersion: WORKFLOW_EXTENSION_VERSION,
+                runtimeBuildIdentity: WORKFLOW_RUNTIME_BUILD_IDENTITY,
                 manager,
                 effort,
             };

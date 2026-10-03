@@ -77,7 +77,7 @@ import { withFakeHomeAsync } from "./helpers/fake-home.js";
 import { fauxRegistry } from "./helpers/faux-registry.js";
 
 async function isolated(fn: (root: string) => Promise<void>) {
-  const base = process.env.YOLO_DURABLE_DIR ?? process.cwd();
+  const base = process.env.TMPDIR ?? "/tmp";
   mkdirSync(join(base, "request-recording-tests"), { recursive: true });
   const root = mkdtempSync(join(base, "request-recording-tests", "test-"));
   try {
@@ -206,17 +206,30 @@ test("direct runWorkflow defaults to durable evidence and explicit false disable
       fauxAssistantMessage("answer", { stopReason: "stop" }),
       fauxAssistantMessage("answer", { stopReason: "stop" }),
     ]);
-    await runWorkflow(script, { cwd: root, runId: "default", modelRegistry: registry, persistLogs: false });
+    const health: string[] = [];
+    const result = await runWorkflow(script, {
+      cwd: root,
+      runId: "default",
+      modelRegistry: registry,
+      persistLogs: false,
+      onLog: (message) => health.push(message),
+    });
+    assert.ok(health.includes("request recording: enabled"));
+    assert.ok(health.includes("request recording: invocation_observer_ready"));
+    // Local diagnostics must not become model-facing workflow result logs.
+    assert.equal(JSON.stringify(result.logs).includes("request recording:"), false);
     const persistence = createRunPersistence(root);
     assert.equal(Object.keys(persistence.load("default")?.requestObservations ?? {}).length, 2);
     await runWorkflow(script, {
       cwd: root,
       runId: "disabled",
+      onLog: (message) => health.push(message),
       modelRegistry: registry,
       recordAgentRequests: false,
       persistLogs: false,
     });
     assert.equal(persistence.load("disabled"), null);
+    assert.ok(health.includes("request recording: disabled"));
     const settingsPath = join(root, "settings.json");
     writeFileSync(settingsPath, JSON.stringify({ recordAgentRequests: false }));
     assert.equal(loadWorkflowSettings({ settingsPath }).recordAgentRequests, false);
@@ -706,4 +719,47 @@ test("warm observation cache remains coherent across mutation, external writers 
     const cold = createRunRecordStore(fs).read(path);
     assert.ok(cold?.requestObservations?.["after-failure"]);
     assert.deepEqual(cold?.requestObservations, store.read(path)?.requestObservations);
+  }));
+
+test("unsupported managed append sinks and rejected writes are locally visible and nonfatal", () =>
+  isolated(async (root) => {
+    const agent = {
+      async run(_prompt: string, options: any) {
+        if (options.onRequestObservation) {
+          const observer = createRequestObserver(
+            { ...options.requestIdentity, sessionId: "s" },
+            undefined,
+            options.onRequestObservation,
+            "not_observed",
+            options.onRequestRecordingHealth,
+          );
+          observer.event({ type: "message_start", message: { role: "assistant" } } as any);
+          observer.close(false);
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+        return "answer";
+      },
+    };
+    for (const appendObservation of [
+      undefined,
+      () => {
+        throw Error("SECRET https://credentials");
+      },
+      () => Promise.reject(Error("SECRET")),
+    ]) {
+      const manager = new WorkflowManager({ cwd: root, agent });
+      (manager as any).persistence.appendObservation = appendObservation;
+      const result = await manager.runSync(
+        `export const meta = { name: 'health', description: 'test' }; await agent('hello');`,
+      );
+      const state = createRunPersistence(root).load(result.runId);
+      assert.ok(state);
+      assert.equal(state.status, "completed");
+      assert.ok(
+        state.logs.includes(
+          appendObservation ? "request recording: append_failed" : "request recording: missing_append_sink",
+        ),
+      );
+      assert.equal(JSON.stringify(state.logs).includes("SECRET"), false);
+    }
   }));

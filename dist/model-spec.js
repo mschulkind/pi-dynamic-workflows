@@ -1,4 +1,4 @@
-import { WorkflowError, WorkflowErrorCode } from "./errors.js";
+import { WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:7c5c2bd87522520f9f78bbb7ba977e22d031b185f343733b5a59d5866b615328";
 export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 /** Validate the separate script/SDK option without changing model-id parsing. */
 export function validateThinkingLevel(value) {
