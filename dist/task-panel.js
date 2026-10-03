@@ -10,11 +10,11 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { AgentSession } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { toPiUsage } from "./agent-usage.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { aggregateAgentUsage, fmtCost, fmtTokenSegment, shorten, statusIcon, tokenFigures, } from "./display.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { mixedFleetAccepted } from "./mixed-fleet.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { runSummary } from "./run-record-store.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { shortModel } from "./workflow-ui.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { toPiUsage } from "./agent-usage.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { aggregateAgentUsage, fmtCost, fmtTokenSegment, shorten, statusIcon, tokenFigures, } from "./display.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { mixedFleetAccepted } from "./mixed-fleet.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { runSummary } from "./run-record-store.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { shortModel } from "./workflow-ui.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
 // `tokenUsage` is included so the detailed panel's live token/s counter refreshes
 // as tokens accrue (not only on agent start/end). It is harmless in compact mode —
 // it redraws identical content.

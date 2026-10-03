@@ -1,4 +1,4 @@
-import { WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
 const PROCESS_RESOLVER_SLOT = Symbol.for("@quintinshaw/pi-dynamic-workflows.preSpawnModelResolver");
 /** Process-wide host policy. Last write wins. Pass `undefined` to clear. Uses globalThis so src/dist duplicate copies still share one slot. */
 export function setPreSpawnModelResolver(resolver) {

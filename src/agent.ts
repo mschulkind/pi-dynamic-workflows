@@ -25,6 +25,7 @@ import { type AgentUsage, agentUsageEquals, createEmptyAgentUsage, sumAgentUsage
 import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js";
 import { pinChildCacheRetention } from "./child-cache-retention.js";
 import {
+  type OptionalChildExtensionResolution,
   optionalPathSet,
   PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST,
   partitionOptionalExtensions,
@@ -818,6 +819,18 @@ export function subagentExcludedTools(extra?: string[], sessionExclude?: string[
   return [...DEFAULT_EXCLUDED_SUBAGENT_TOOLS, ...(sessionExclude ?? []), ...(extra ?? [])];
 }
 
+/** Optional observers never fail a child. The resolver is total; this guards the call sites too. */
+function resolveOptionalChildExtensionsOrNothing(
+  loadedPaths: readonly string[],
+  cwd: string,
+): OptionalChildExtensionResolution {
+  try {
+    return resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, loadedPaths, cwd);
+  } catch {
+    return { extensions: [], diagnostics: ["optional child extensions skipped: the registry could not be read"] };
+  }
+}
+
 export class WorkflowAgent {
   private readonly cwd: string;
   private readonly baseTools: ToolDefinition[];
@@ -993,7 +1006,7 @@ export class WorkflowAgent {
     const loader = await this.getSharedResourceLoader(agentDir, cwd, guarded);
     const shared = !guarded && this.providerMiddlewareExtensions.length === 0;
     if (!shared) return loader;
-    const optional = resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, [], cwd);
+    const optional = resolveOptionalChildExtensionsOrNothing([], cwd);
     for (const diagnostic of optional.diagnostics) warnOptionalChildExtension(diagnostic);
     return withOptionalChildExtensions(loader, optional.extensions, { cwd, agentDir });
   }
@@ -1043,7 +1056,7 @@ export class WorkflowAgent {
       // a shared one never does (getChildResourceLoader overlays them per child).
       const optional = shared
         ? { extensions: [], diagnostics: [] }
-        : resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, middlewarePaths, cwd);
+        : resolveOptionalChildExtensionsOrNothing(middlewarePaths, cwd);
       for (const diagnostic of optional.diagnostics) warnOptionalChildExtension(diagnostic);
       const optionalPaths = optionalPathSet(optional.extensions);
       const loader = new DefaultResourceLoader({

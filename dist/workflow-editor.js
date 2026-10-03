@@ -5,9 +5,9 @@
  * workflow tool. Detection is purely textual (`event.text` on the `input`
  * hook) — it does not depend on, or own, the host's editor component.
  */
-import { DEFAULT_KEYWORD_TRIGGER_WORD, normalizeKeywordTriggerWord } from "./config.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { effortDirective, isSubstantive } from "./effort-command.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { loadWorkflowSettings, saveWorkflowSettings, } from "./workflow-settings.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { DEFAULT_KEYWORD_TRIGGER_WORD, normalizeKeywordTriggerWord } from "./config.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { effortDirective, isSubstantive } from "./effort-command.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { loadWorkflowSettings, saveWorkflowSettings, } from "./workflow-settings.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
 // A keyword trigger is a configured literal term. All trigger words use token
 // boundaries so slash commands, paths, and identifier-like text stay untouched.
 // The default `workflow` trigger additionally supports the plural `workflows`.

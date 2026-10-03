@@ -25,14 +25,16 @@ export interface OptionalChildExtensionResolution {
  *
  * `loadedPaths` are the extension paths the child already loads; an entry whose
  * canonical path matches one of them, or an earlier entry, is dropped so the
- * same file never loads twice. Never throws.
+ * same file never loads twice. Never throws: whatever another extension put in
+ * the registry, the worst outcome is a diagnostic.
  */
 export declare function resolveOptionalChildExtensions(host: string, loadedPaths?: readonly string[], cwd?: string): OptionalChildExtensionResolution;
+type Handler = (...args: never[]) => unknown;
 /** Minimal view of a pi `Extension` this module touches. */
 interface LoadedExtensionLike {
     path: string;
     resolvedPath?: string;
-    handlers: Map<string, Array<(...args: never[]) => unknown>>;
+    handlers: Map<string, Handler[]>;
 }
 /**
  * Make an optional extension's event handlers unable to affect the child: a
@@ -40,6 +42,14 @@ interface LoadedExtensionLike {
  * Pi already isolates most handler errors, but not all (a throwing `tool_call`
  * handler fails the tool call), and an observer must never change the run.
  * Handlers that succeed keep their return value and their sync/async shape.
+ *
+ * The wrapping happens when a handler is read, not once up front, so it also
+ * covers handlers the extension registers later through `pi.on` (from
+ * `session_start`, say). The map keeps pi's own handler arrays and the
+ * original handlers in them: reads go through a view that hands out one
+ * memoized wrapper per original, and writes through that view store the
+ * original again. So pi's `on()` (`get`, `push`, `set`) and the unsubscribe
+ * it returns (`get`, `indexOf`, `splice`, `delete`) keep working unchanged.
  */
 export declare function isolateOptionalExtensionHandlers(extension: LoadedExtensionLike, report: (event: string, error: unknown) => void): void;
 /**

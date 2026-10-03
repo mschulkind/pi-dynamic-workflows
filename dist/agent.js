@@ -3,18 +3,18 @@ import { realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAgentSession, createCodingTools, DefaultPackageManager, DefaultResourceLoader, getAgentDir, ModelRegistry, SessionManager, SettingsManager, } from "@earendil-works/pi-coding-agent";
 import { Check, Convert } from "typebox/value";
-import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { optionalPathSet, PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, partitionOptionalExtensions, reportOptionalLoadErrors, resolveOptionalChildExtensions, warnOptionalChildExtension, withOptionalChildExtensions, } from "./optional-child-extensions.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { compactAgentHistory } from "./agent-history.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { pinChildCacheRetention } from "./child-cache-retention.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { optionalPathSet, PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, partitionOptionalExtensions, reportOptionalLoadErrors, resolveOptionalChildExtensions, warnOptionalChildExtension, withOptionalChildExtensions, } from "./optional-child-extensions.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { coreRecordingActivation, createRequestObserver, initializeRequestObserver, observeRequestInvocations, } from "./request-recording.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { applyToolPolicy } from "./agent-registry.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { classifyProviderLimit, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { canonicalModelSpec, formatModelSpecWithThinking, resolveModelSpecWithThinking, validateThinkingLevel, } from "./model-spec.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { formatTierFallbackNotice, loadModelTierConfig, resolveTierModel, } from "./model-tier-config.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { applyPreSpawnModel, classifyModelSource, getPreSpawnModelResolver, } from "./pre-spawn-model.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { createStructuredOutputTool } from "./structured-output.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
 const LIVE_USAGE_EMIT_INTERVAL_MS = 250;
 /**
  * Find a JSON object/array in free-form text: a fenced ```json block if present,
@@ -490,6 +490,15 @@ let workflowAgentSeq = 0;
 export function subagentExcludedTools(extra, sessionExclude) {
     return [...DEFAULT_EXCLUDED_SUBAGENT_TOOLS, ...(sessionExclude ?? []), ...(extra ?? [])];
 }
+/** Optional observers never fail a child. The resolver is total; this guards the call sites too. */
+function resolveOptionalChildExtensionsOrNothing(loadedPaths, cwd) {
+    try {
+        return resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, loadedPaths, cwd);
+    }
+    catch {
+        return { extensions: [], diagnostics: ["optional child extensions skipped: the registry could not be read"] };
+    }
+}
 export class WorkflowAgent {
     cwd;
     baseTools;
@@ -664,7 +673,7 @@ export class WorkflowAgent {
         const shared = !guarded && this.providerMiddlewareExtensions.length === 0;
         if (!shared)
             return loader;
-        const optional = resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, [], cwd);
+        const optional = resolveOptionalChildExtensionsOrNothing([], cwd);
         for (const diagnostic of optional.diagnostics)
             warnOptionalChildExtension(diagnostic);
         return withOptionalChildExtensions(loader, optional.extensions, { cwd, agentDir });
@@ -709,7 +718,7 @@ export class WorkflowAgent {
             // a shared one never does (getChildResourceLoader overlays them per child).
             const optional = shared
                 ? { extensions: [], diagnostics: [] }
-                : resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, middlewarePaths, cwd);
+                : resolveOptionalChildExtensionsOrNothing(middlewarePaths, cwd);
             for (const diagnostic of optional.diagnostics)
                 warnOptionalChildExtension(diagnostic);
             const optionalPaths = optionalPathSet(optional.extensions);

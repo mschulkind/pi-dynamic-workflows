@@ -369,3 +369,176 @@ test("isolateOptionalExtensionHandlers keeps successful results and the sync sha
   assert.equal(await extension.handlers.get("message_end")?.[0]?.(), undefined);
   assert.deepEqual(reported, ["message_end: rejected"]);
 });
+
+test("resolution never throws on registries that resist being read, and keeps the healthy entries", async () => {
+  await withFixture(async ({ home, observer }) => {
+    const other = join(home, "other.mjs");
+    writeFileSync(other, "export default () => {};\n");
+    // A key String() cannot convert: one bad key must not hide the good entries.
+    (globalThis as Root)[OPTIONAL_CHILD_EXTENSIONS_KEY] = new Map<unknown, unknown>([
+      [Object.create(null), { path: observer }],
+      ["good", { path: other }],
+    ]);
+    assert.deepEqual(
+      resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST).extensions.map(({ id, path }) => [id, path]),
+      [
+        ["<unprintable key>", observer],
+        ["good", other],
+      ],
+    );
+    // A Proxy registry whose getPrototypeOf trap throws defeats `instanceof Map`.
+    (globalThis as Root)[OPTIONAL_CHILD_EXTENSIONS_KEY] = new Proxy(new Map(), {
+      getPrototypeOf() {
+        throw new Error("prototype trap");
+      },
+    });
+    const trapped = resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST);
+    assert.deepEqual(trapped.extensions, []);
+    assert.match(trapped.diagnostics[0] ?? "", /registry is unreadable: prototype trap/);
+    // An entry getter that throws a value String() cannot convert.
+    const nullThrower = {
+      get path(): string {
+        throw Object.create(null);
+      },
+    };
+    register({ "null-throw": nullThrower, good: { path: other } });
+    const thrown = resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST);
+    assert.deepEqual(
+      thrown.extensions.map(({ id }) => id),
+      ["good"],
+    );
+    assert.match(thrown.diagnostics.join("\n"), /'null-throw' ignored: <unprintable error>/);
+  });
+});
+
+test("a child still runs when the registry throws a null-prototype object from getPrototypeOf", async () => {
+  await withFixture(async ({ home, cwd, core, warnings }) => {
+    (globalThis as Root)[OPTIONAL_CHILD_EXTENSIONS_KEY] = new Proxy(new Map(), {
+      getPrototypeOf() {
+        throw Object.create(null);
+      },
+    });
+    const agent = new WorkflowAgent({ cwd, modelRegistry: await fauxRegistry(home, core) });
+    core.setResponses([fauxAssistantMessage("ran", { stopReason: "stop" })]);
+    assert.equal(await agent.run("task", { model: MODEL }), "ran");
+    assert.match(warnings.join("\n"), /registry is unreadable: <unprintable error>/);
+  });
+});
+
+type HandlerList = Array<(...args: never[]) => unknown>;
+interface HandlerOwner {
+  handlers: Map<string, HandlerList>;
+}
+
+/**
+ * pi's `on()` and the unsubscribe it returns, as pi 1.0.1 writes them
+ * (core/extensions/loader.js): `get`, `push`, `set`; then `get`, `indexOf`,
+ * `splice`, `delete`. The runner reads `handlers.get(event)?.slice()`.
+ */
+function piOn(extension: HandlerOwner, event: string, handler: (...args: never[]) => unknown): () => void {
+  const registeredHandler = (...args: never[]) => handler(...args);
+  const list = extension.handlers.get(event) ?? [];
+  list.push(registeredHandler);
+  extension.handlers.set(event, list);
+  return () => {
+    const handlers = extension.handlers.get(event);
+    if (!handlers) return;
+    const index = handlers.indexOf(registeredHandler);
+    if (index === -1) return;
+    handlers.splice(index, 1);
+    if (handlers.length === 0) extension.handlers.delete(event);
+  };
+}
+const snapshot = (extension: HandlerOwner, event: string) => extension.handlers.get(event)?.slice() ?? [];
+
+test("isolateOptionalExtensionHandlers covers handlers registered later, as pi.on does from session_start", async () => {
+  const reported: string[] = [];
+  const extension = { path: "/x/observer.mjs", handlers: new Map<string, HandlerList>() };
+  piOn(extension, "session_start", () => {
+    piOn(extension, "tool_call", () => {
+      throw new Error("late tool_call exploded");
+    });
+    piOn(extension, "message_end", async () => {
+      throw new Error("late message_end exploded");
+    });
+  });
+  isolateOptionalExtensionHandlers(extension, (event, error) => reported.push(`${event}: ${(error as Error).message}`));
+  for (const handler of snapshot(extension, "session_start")) await handler();
+  assert.equal(snapshot(extension, "tool_call").length, 1);
+  for (const handler of snapshot(extension, "tool_call")) assert.equal(handler(), undefined);
+  for (const handler of snapshot(extension, "message_end")) assert.equal(await handler(), undefined);
+  assert.deepEqual(reported, ["tool_call: late tool_call exploded", "message_end: late message_end exploded"]);
+  // One wrapper per original handler, and the map still holds pi's arrays of originals.
+  assert.equal(extension.handlers.get("tool_call")?.[0], extension.handlers.get("tool_call")?.[0]);
+  const raw = Map.prototype.get.call(extension.handlers, "tool_call") as HandlerList;
+  assert.throws(() => raw[0]?.(), /late tool_call exploded/);
+});
+
+test("isolateOptionalExtensionHandlers keeps pi's unsubscribe working, before and after isolation", () => {
+  const fired: string[] = [];
+  const extension = { path: "/x/observer.mjs", handlers: new Map<string, HandlerList>() };
+  const offEarly = piOn(extension, "message_end", () => fired.push("early"));
+  const offKept = piOn(extension, "message_end", () => fired.push("kept"));
+  isolateOptionalExtensionHandlers(extension, () => {});
+  const offLate = piOn(extension, "message_end", () => fired.push("late"));
+  const offOnly = piOn(extension, "turn_end", () => fired.push("only"));
+  offEarly();
+  offLate();
+  offOnly();
+  for (const handler of snapshot(extension, "message_end")) handler();
+  assert.deepEqual(fired, ["kept"], "off() removed the handlers it registered, and only those");
+  assert.equal(extension.handlers.has("turn_end"), false, "the last off() deletes the event");
+  offKept();
+  assert.equal(extension.handlers.has("message_end"), false);
+  // Isolating twice wraps once, and a throwing reporter is contained too.
+  isolateOptionalExtensionHandlers(extension, () => {
+    throw new Error("reporter broke");
+  });
+  piOn(extension, "tool_call", () => {
+    throw new Error("boom");
+  });
+  assert.equal(snapshot(extension, "tool_call")[0]?.(), undefined);
+});
+
+test("a late-registered throwing tool_call cannot block a workflow child's tool, and pi's off() still works", async () => {
+  await withFixture(async ({ home, cwd, log, core, warnings }) => {
+    const late = join(home, "late.mjs");
+    writeFileSync(
+      late,
+      `export default function (pi) {
+  const log = globalThis[Symbol.for(${JSON.stringify(LOG_KEY)})];
+  log.loads += 1;
+  const off = pi.on("message_end", () => { log.events.push({ event: "unsubscribed message_end" }); });
+  pi.on("session_start", () => {
+    // pi < 1.0 returns no unsubscribe from on().
+    if (typeof off === "function") off();
+    else log.events.push({ event: "no off()" });
+    pi.on("tool_call", () => { throw new Error("late tool_call exploded"); });
+    pi.on("message_end", () => { log.events.push({ event: "late message_end" }); });
+  });
+}
+`,
+    );
+    writeFileSync(join(cwd, "note.txt"), "readable\n");
+    register({ late: { path: late } });
+    const agent = new WorkflowAgent({ cwd, modelRegistry: await fauxRegistry(home, core) });
+    let toolResult: { isError?: boolean } | undefined;
+    core.setResponses([
+      fauxAssistantMessage(fauxToolCall("read", { path: "note.txt" }), { stopReason: "toolUse" }),
+      (context) => {
+        toolResult = context.messages.find((message) => message.role === "toolResult") as typeof toolResult;
+        return fauxAssistantMessage("survived", { stopReason: "stop" });
+      },
+    ]);
+    assert.equal(await agent.run("read the note", { model: MODEL }), "survived");
+    assert.equal(log.loads, 1);
+    assert.ok(toolResult, "the tool ran");
+    assert.equal(toolResult.isError, false, "a late throwing tool_call observer did not block the tool");
+    assert.match(warnings.join("\n"), /failed in tool_call: late tool_call exploded \(ignored\)/);
+    const events = log.events.map(({ event }) => event);
+    if (!events.includes("no off()")) {
+      assert.equal(events.includes("unsubscribed message_end"), false, "off() removed the handler");
+    }
+    assert.ok(events.includes("late message_end"), "a late handler still fires");
+  });
+});

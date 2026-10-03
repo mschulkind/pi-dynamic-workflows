@@ -3,14 +3,14 @@
  */
 import { EventEmitter } from "node:events";
 import { isDeepStrictEqual } from "node:util";
-import { createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { ChildApprovalScope } from "./child-approval.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { MAX_AGENTS_PER_RUN } from "./config.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { emptyFleetSummary, preview, recomputeWorkflowSnapshot, } from "./display.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { isProviderUsageLimit, WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { agentHasNonTerminalStatus, createRunPersistence, generateRunId, INTERRUPTED_AGENT_CAUSE, sanitizeAutoResumeAttempts, settleInterruptedPersistedAgents, settleNonTerminalPersistedAgents, terminalRunInterruptCause, VALID_PERSISTED_AGENT_STATUSES, } from "./run-persistence.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { runSummary } from "./run-record-store.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
-import { cloneDurableJsonValue, parseWorkflowScript, runWorkflow, } from "./workflow.js?workflowBuild=sha256:fe0bb3a6156e0c358d13b7e7ee4deb4db42d6b38ba3801f8396ce2824f7fb97a";
+import { createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { ChildApprovalScope } from "./child-approval.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { MAX_AGENTS_PER_RUN } from "./config.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { emptyFleetSummary, preview, recomputeWorkflowSnapshot, } from "./display.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { isProviderUsageLimit, WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { agentHasNonTerminalStatus, createRunPersistence, generateRunId, INTERRUPTED_AGENT_CAUSE, sanitizeAutoResumeAttempts, settleInterruptedPersistedAgents, settleNonTerminalPersistedAgents, terminalRunInterruptCause, VALID_PERSISTED_AGENT_STATUSES, } from "./run-persistence.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { runSummary } from "./run-record-store.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
+import { cloneDurableJsonValue, parseWorkflowScript, runWorkflow, } from "./workflow.js?workflowBuild=sha256:785b466482da41a3e1d95d152bf3b2530f07d8f19eaea92d47565b067057d9da";
 // A human's checkpoint reply fails with "still settling" when the pause tail
 // (a full-state persist on a slow/synced disk) exceeds this cap (audit2 #19).
 // 10s bounds the attach wait without flaking on Dropbox-hosted projects.

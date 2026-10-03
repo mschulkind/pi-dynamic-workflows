@@ -23,10 +23,12 @@ entry. An entry that names only other hosts is skipped. The one exception is an 
   `providerMiddlewareExtensions` allowlist, and after the allowlisted middleware. The recursive-orchestration exclusion
   does not apply to them either: the registrant is trusted in-process code and decides what it registers.
 - **Deduplication.** An entry whose realpath matches an allowlisted middleware path, or an earlier entry, is skipped.
-- **Fail-open.** A non-`Map` registry, a malformed entry, a relative or missing path, an import or factory error, and a
-  throwing or rejecting handler never fail a child. Each becomes a `[workflow]` warning, printed once per process.
-  Handlers are wrapped so that even a throwing `tool_call` handler, which Pi itself does not isolate, cannot block a
-  tool.
+- **Fail-open.** A non-`Map` registry (including a Proxy that throws when inspected), a key that cannot be printed, a
+  malformed entry, a relative or missing path, an import or factory error, and a throwing or rejecting handler never
+  fail a child. Each becomes a `[workflow]` warning, printed once per process. Handlers are wrapped so that even a
+  throwing `tool_call` handler, which Pi itself does not isolate, cannot block a tool. The wrapping applies when Pi
+  reads a handler, so it also covers handlers registered later through `pi.on` (for example from `session_start`), and
+  the unsubscribe function `pi.on` returns keeps working.
 - **Timing.** The registry is read when each child session is created, and entries load with the child's extensions,
   before `session_start`. The child's extensions are bound with `bindExtensions({})`, so `ctx.hasUI` is false.
 
