@@ -181,3 +181,18 @@ Seven optional existing approval checks remain skipped: six need the external ac
 ```
 
 The final loader-failure artifact's name predates diagnosis; its missing package was `pi-codemode`, not the protocol package. It is a harness-inventory failure retained verbatim. Fixture setup, full gate, focused repairs, and matrix commands are retained as durable shell scripts/loader files alongside these logs.
+
+### Final parent full gate
+
+After the focused fixture repairs, the parent reran the complete gate: **1,709 passed, zero failed, seven skipped** across 1,716 tests. Release verification reported zero warnings; guidance and lint passed. Complete distribution/frontend manifests matched across another build, and the source tree remained clean. This supersedes the earlier focused-only landing limitation, not the missing live-activation evidence.
+
+```text
+/workspace/.yolo/durable/activation-parent-gate.sh
+/workspace/.yolo/durable/activation-parent-full.log
+/workspace/.yolo/durable/activation-parent-guidance.log
+/workspace/.yolo/durable/activation-parent-lint.log
+/workspace/.yolo/durable/activation-parent-dist-before.txt
+/workspace/.yolo/durable/activation-parent-dist-after.txt
+```
+
+The README's reload paragraph now explicitly requires matching package and loaded-build identities, consistent with the recording contract. Publication, process restart, and fresh production hydration verification remain human rollout steps; no scanner changes or historical recovery occurred.
