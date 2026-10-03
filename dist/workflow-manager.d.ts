@@ -323,6 +323,8 @@ export interface WorkflowManagerOptions {
      * standard sessions directory. Default false (in-memory, discarded).
      */
     persistAgentSessions?: boolean;
+    /** Metadata-only SDK request observations, default true. */
+    recordAgentRequests?: boolean;
     /**
      * How many terminal (completed/failed/aborted) runs to retain full
      * in-memory state for before the oldest is evicted from `runs` (see the
@@ -335,7 +337,7 @@ export interface WorkflowManagerOptions {
 /** Options that a fresh extension generation may safely refresh on a live
  * manager handed across `/reload`. Execution identity (`cwd`, persistence,
  * injected agent, and in-memory runs) is intentionally excluded. */
-export type WorkflowManagerReloadOptions = Pick<WorkflowManagerOptions, "concurrency" | "loadSavedWorkflow" | "defaultAgentTimeoutMs" | "defaultAgentRetries" | "defaultTokenBudget" | "toolsets" | "excludeSubagentTools" | "providerMiddlewareExtensions" | "persistAgentSessions" | "inheritMainModel">;
+export type WorkflowManagerReloadOptions = Pick<WorkflowManagerOptions, "concurrency" | "loadSavedWorkflow" | "defaultAgentTimeoutMs" | "defaultAgentRetries" | "defaultTokenBudget" | "toolsets" | "excludeSubagentTools" | "providerMiddlewareExtensions" | "recordAgentRequests" | "persistAgentSessions" | "inheritMainModel">;
 export declare class WorkflowManager extends EventEmitter {
     /**
      * Lifecycle contract for `runs`:
@@ -408,6 +410,7 @@ export declare class WorkflowManager extends EventEmitter {
     private toolsets?;
     private excludeSubagentTools?;
     private providerMiddlewareExtensions?;
+    private recordAgentRequests;
     private persistAgentSessions;
     private inheritMainModel;
     private readonly childApprovalScope;

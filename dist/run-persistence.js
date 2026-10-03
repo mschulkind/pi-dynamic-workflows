@@ -369,6 +369,14 @@ export function createRunPersistence(cwd, fsOverride, options) {
         return deleted;
     };
     return {
+        appendObservation(runId, observation) {
+            try {
+                return mutate(runId, () => records.appendObservation(primaryRunPath(runId), observation));
+            }
+            catch {
+                return false;
+            }
+        },
         exportResult(runId, result) {
             return mutate(runId, () => {
                 if (!candidateRunPaths(runId).some((path) => _existsSync(path)))

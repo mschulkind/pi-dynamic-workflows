@@ -127,6 +127,7 @@ export class WorkflowManager extends EventEmitter {
     toolsets;
     excludeSubagentTools;
     providerMiddlewareExtensions;
+    recordAgentRequests;
     persistAgentSessions;
     inheritMainModel;
     childApprovalScope = new ChildApprovalScope();
@@ -150,6 +151,7 @@ export class WorkflowManager extends EventEmitter {
         this.toolsets = options.toolsets;
         this.excludeSubagentTools = options.excludeSubagentTools;
         this.providerMiddlewareExtensions = options.providerMiddlewareExtensions;
+        this.recordAgentRequests = options.recordAgentRequests ?? true;
         this.persistAgentSessions = options.persistAgentSessions ?? false;
         this.inheritMainModel = options.inheritMainModel ?? false;
         this.maxTerminalRunsInMemory = options.maxTerminalRunsInMemory ?? DEFAULT_MAX_TERMINAL_RUNS_IN_MEMORY;
@@ -297,6 +299,7 @@ export class WorkflowManager extends EventEmitter {
         this.toolsets = options.toolsets;
         this.excludeSubagentTools = options.excludeSubagentTools;
         this.providerMiddlewareExtensions = options.providerMiddlewareExtensions;
+        this.recordAgentRequests = options.recordAgentRequests ?? true;
         this.persistAgentSessions = options.persistAgentSessions ?? false;
         this.inheritMainModel = options.inheritMainModel ?? false;
     }
@@ -560,6 +563,8 @@ export class WorkflowManager extends EventEmitter {
                 agent: this.agent,
                 mainModel: this.mainModel,
                 modelRegistry: this.modelRegistry,
+                recordAgentRequests: this.recordAgentRequests,
+                onRequestObservation: (record) => this.persistence.appendObservation?.(managed.runId, record),
                 persistAgentSessions: this.persistAgentSessions,
                 inheritMainModel: this.inheritMainModel,
                 parentSessionFile: managed.parentSessionFile,

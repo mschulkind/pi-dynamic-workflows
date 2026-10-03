@@ -80,6 +80,14 @@ export type {
 } from "./pre-spawn-model.js";
 export { getPreSpawnModelResolver, setPreSpawnModelResolver } from "./pre-spawn-model.js";
 export type {
+  CoreRecordingActivation,
+  RequestIdentity,
+  RequestObservation,
+  RequestReplay,
+  RequestSink,
+  WorkflowRequestEvidence,
+} from "./request-recording.js";
+export type {
   PendingDeliveryMarker,
   PersistedAgentState,
   PersistedRunState,

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -22,6 +22,8 @@ import { WorkflowCheckpointSuspensionError, WorkflowError, WorkflowErrorCode, wr
 import { createWorkflowLogger } from "./logger.js";
 import { parseModelRoutingFromMeta, resolveModelForPhase } from "./model-routing.js";
 import { validateThinkingLevel } from "./model-spec.js";
+import { emitRequestObservation, type RequestSink } from "./request-recording.js";
+import { createRunPersistence, type PersistedRunState } from "./run-persistence.js";
 import { createAgentStoreTools, SharedStore } from "./shared-store.js";
 import { WORKFLOW_CAPABILITY_CONTRACT, type WorkflowRuntimeImplementations } from "./workflow-capability-contract.js";
 import { createWorktree, removeWorktree, type Worktree } from "./worktree.js";
@@ -198,6 +200,12 @@ export interface WorkflowCheckpoint extends WorkflowCheckpointInput {
 }
 
 export interface WorkflowRunOptions extends WorkflowAgentOptions {
+  /** Metadata-only request evidence is on by default; false disables it. */
+  recordAgentRequests?: boolean;
+  onRequestObservation?: RequestSink;
+  /** Internal attribution shared by nested frames. */
+  requestRootRunId?: string;
+  requestExecutionId?: string;
   args?: unknown;
   agent?: WorkflowAgentRunner;
   /** The session's main model (provider/id); the pre-resolution display guess and, with inheritMainModel on, the untagged routing target. */
@@ -572,6 +580,41 @@ export async function runWorkflow<T = unknown>(
     agentTimeoutMs = DEFAULT_AGENT_TIMEOUT_MS;
   }
   const runId = options.runId ?? `run-${started.toString(36)}`;
+  const requestRootRunId = options.requestRootRunId ?? runId;
+  const requestExecutionId = options.requestExecutionId ?? randomUUID();
+  // The manager supplies its own durable sink. Direct embedding gets the same
+  // persistence abstraction, not a metadata tool or model-visible transcript.
+  const requestPersistence =
+    options.recordAgentRequests !== false && !options.onRequestObservation && !options.requestRootRunId
+      ? createRunPersistence(options.cwd ?? process.cwd())
+      : undefined;
+  let evidenceState: PersistedRunState | undefined;
+  const requestSink: RequestSink | undefined =
+    options.onRequestObservation ??
+    (requestPersistence
+      ? (record) => {
+          try {
+            if (!evidenceState) {
+              const initialState = requestPersistence.load(requestRootRunId) ?? {
+                runId: requestRootRunId,
+                workflowName: "request-evidence",
+                script: "",
+                status: "running",
+                phases: [],
+                agents: [],
+                logs: [],
+                startedAt: new Date(started).toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+              requestPersistence.save(initialState);
+              evidenceState = initialState;
+            }
+            requestPersistence.appendObservation?.(requestRootRunId, record);
+          } catch {
+            /* evidence is best-effort */
+          }
+        }
+      : undefined);
   const baseCwd = options.cwd ?? process.cwd();
   // Snapshot the agentType registry ONCE per run so two agent() calls can't
   // observe a mid-run edit (determinism); a later resume re-reads it.
@@ -938,6 +981,23 @@ export async function runWorkflow<T = unknown>(
     const hashMatches = cached != null && cached.hash === callHash;
     const cachedEmptyOutput = hashMatches && isEmptyTextAgentResult(cached.result, agentOptions.schema);
     if (!shared.resumeBarrierReached && hashMatches && !cachedEmptyOutput && callIndex < state.firstMiss) {
+      if (options.recordAgentRequests !== false) {
+        const stableWorkId = `${deltaKey}:${callHash}`;
+        emitRequestObservation(requestSink, {
+          schemaVersion: 1,
+          recordKind: "workflow_request_replay",
+          recordId: randomUUID(),
+          source: "pi-dynamic-workflows",
+          accountingRole: "non_request_provenance",
+          rootRunId: requestRootRunId,
+          frameRunId: runId,
+          executionId: requestExecutionId,
+          callId: deltaKey,
+          stableWorkId,
+          observedAtUtc: new Date().toISOString(),
+          evidenceReference: { rootRunId: requestRootRunId, callId: deltaKey, stableWorkId },
+        });
+      }
       // Replay preserves the journaled model and historical session identity.
       const replayModel = cached.model ?? displayModel;
       options.onAgentStart?.({
@@ -1084,6 +1144,19 @@ export async function runWorkflow<T = unknown>(
               shared.runFatalController.signal.addEventListener("abort", onRunFatal, { once: true });
             }
             runPromise = agentRunner.run(prompt, {
+              requestIdentity:
+                options.recordAgentRequests === false
+                  ? undefined
+                  : {
+                      rootRunId: requestRootRunId,
+                      frameRunId: runId,
+                      executionId: requestExecutionId,
+                      callId: deltaKey,
+                      stableWorkId: `${deltaKey}:${callHash}`,
+                      childAttemptId: randomUUID(),
+                      childAttemptOrdinal: attempt,
+                    },
+              onRequestObservation: options.recordAgentRequests === false ? undefined : requestSink,
               runId,
               label,
               // Identifiable name for persisted sessions (persistAgentSessions).
@@ -1431,6 +1504,9 @@ export async function runWorkflow<T = unknown>(
           ...options,
           args: childArgs,
           sharedRuntime: shared,
+          requestRootRunId,
+          requestExecutionId,
+          onRequestObservation: requestSink,
           // Propagate the parent's store so nested agents share the same key-value space.
           sharedStore: store,
           resumeJournal: prefixIntact ? options.resumeJournal : undefined,
@@ -2002,6 +2078,15 @@ export async function runWorkflow<T = unknown>(
         } catch {
           // Instrumentation must never break teardown (dispose below) or mask
           // the run's own outcome.
+        }
+      }
+      if (requestPersistence && evidenceState) {
+        try {
+          evidenceState.status = runSucceeded ? "completed" : options.signal?.aborted ? "aborted" : "failed";
+          evidenceState.completedAt = new Date().toISOString();
+          requestPersistence.save(evidenceState);
+        } catch {
+          /* evidence is best-effort */
         }
       }
       store.dispose();

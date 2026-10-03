@@ -200,17 +200,23 @@ export function createRunRecordStore(fs) {
             cache.delete(key);
         }
     }
+    function cachedAtHead(path, head) {
+        const cached = cache.get(path);
+        return cached?.generation === head.generation &&
+            cached.bytes === head.bytes &&
+            cached.hash === head.hash &&
+            cached.stamp === logStamp(path)
+            ? cached
+            : undefined;
+    }
     function hydrate(path, head) {
         if (!Number.isSafeInteger(head.bytes) ||
             head.bytes <= 0 ||
             !Number.isSafeInteger(head.sequence) ||
             head.sequence <= 0)
             throw new Error("Invalid run commit boundary");
-        const cached = cache.get(path);
-        if (cached?.generation === head.generation &&
-            cached.bytes === head.bytes &&
-            cached.hash === head.hash &&
-            cached.stamp === logStamp(path)) {
+        const cached = cachedAtHead(path, head);
+        if (cached) {
             cache.delete(path);
             cache.set(path, cached);
             return cached.state;
@@ -337,7 +343,9 @@ export function createRunRecordStore(fs) {
         const head = isHead(previous) ? previous : undefined;
         const prior = head ? hydrate(path, head) : undefined;
         const before = prior ? (cache.get(path)?.cells ?? cellsOf(prior)) : new Map();
-        const after = cellsOf(state);
+        // Observation writes have an independent lifetime from snapshot callbacks.
+        // A later stale snapshot must never erase the committed evidence.
+        const after = cellsOf({ ...state, requestObservations: prior?.requestObservations ?? state.requestObservations });
         const delta = deltaOf(before, after);
         const next = commit(path, head, delta, {
             keys: [...after.keys()],
@@ -358,6 +366,44 @@ export function createRunRecordStore(fs) {
         const copy = (prior ?? {});
         applyDelta(copy, delta);
         remember(path, next, copy, after);
+    }
+    function appendObservation(path, observation) {
+        const record = readRecord(fs, path);
+        if (!record)
+            return false;
+        if (!isHead(record)) {
+            save(path, {
+                ...record,
+                requestObservations: { ...record.requestObservations, [observation.recordId]: observation },
+            });
+            return true;
+        }
+        const cached = cachedAtHead(path, record);
+        const persisted = structuredClone(observation);
+        const delta = {
+            set: {},
+            remove: [],
+            arrays: {},
+            objects: { requestObservations: { set: { [persisted.recordId]: persisted }, remove: [] } },
+        };
+        const next = commit(path, record, delta, {
+            keys: [...new Set([...record.keys, "requestObservations"])],
+            index: record.index,
+            summary: record.summary,
+            pendingDelivery: record.pendingDelivery,
+        });
+        // Only publish the cached delta after the authoritative head commits. A
+        // warm append/save loop must not reparse all earlier observations. A cold
+        // or externally changed head still hydrates normally on the next read.
+        if (cached) {
+            applyDelta(cached.state, delta);
+            const old = cached.cells.get("requestObservations");
+            const cells = old instanceof Map ? old : new Map();
+            cells.set(persisted.recordId, JSON.stringify(persisted));
+            cached.cells.set("requestObservations", cells);
+            remember(path, next, cached.state, cached.cells);
+        }
+        return true;
     }
     function updateMetadata(path, patch, expectedDeliveryId) {
         const record = readRecord(fs, path);
@@ -439,6 +485,7 @@ export function createRunRecordStore(fs) {
         preview,
         save,
         updateMetadata,
+        appendObservation,
         recoverInterrupted,
         forget: (path) => cache.delete(path),
         logPath,

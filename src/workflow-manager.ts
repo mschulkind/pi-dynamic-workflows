@@ -373,6 +373,8 @@ export interface WorkflowManagerOptions {
    * standard sessions directory. Default false (in-memory, discarded).
    */
   persistAgentSessions?: boolean;
+  /** Metadata-only SDK request observations, default true. */
+  recordAgentRequests?: boolean;
   /**
    * How many terminal (completed/failed/aborted) runs to retain full
    * in-memory state for before the oldest is evicted from `runs` (see the
@@ -396,6 +398,7 @@ export type WorkflowManagerReloadOptions = Pick<
   | "toolsets"
   | "excludeSubagentTools"
   | "providerMiddlewareExtensions"
+  | "recordAgentRequests"
   | "persistAgentSessions"
   | "inheritMainModel"
 >;
@@ -497,6 +500,7 @@ export class WorkflowManager extends EventEmitter {
   private toolsets?: Record<string, () => ToolDefinition[]>;
   private excludeSubagentTools?: string[];
   private providerMiddlewareExtensions?: string[];
+  private recordAgentRequests: boolean;
   private persistAgentSessions: boolean;
   private inheritMainModel: boolean;
 
@@ -523,6 +527,7 @@ export class WorkflowManager extends EventEmitter {
     this.toolsets = options.toolsets;
     this.excludeSubagentTools = options.excludeSubagentTools;
     this.providerMiddlewareExtensions = options.providerMiddlewareExtensions;
+    this.recordAgentRequests = options.recordAgentRequests ?? true;
     this.persistAgentSessions = options.persistAgentSessions ?? false;
     this.inheritMainModel = options.inheritMainModel ?? false;
     this.maxTerminalRunsInMemory = options.maxTerminalRunsInMemory ?? DEFAULT_MAX_TERMINAL_RUNS_IN_MEMORY;
@@ -661,6 +666,7 @@ export class WorkflowManager extends EventEmitter {
     this.toolsets = options.toolsets;
     this.excludeSubagentTools = options.excludeSubagentTools;
     this.providerMiddlewareExtensions = options.providerMiddlewareExtensions;
+    this.recordAgentRequests = options.recordAgentRequests ?? true;
     this.persistAgentSessions = options.persistAgentSessions ?? false;
     this.inheritMainModel = options.inheritMainModel ?? false;
   }
@@ -962,6 +968,8 @@ export class WorkflowManager extends EventEmitter {
         agent: this.agent,
         mainModel: this.mainModel,
         modelRegistry: this.modelRegistry,
+        recordAgentRequests: this.recordAgentRequests,
+        onRequestObservation: (record) => this.persistence.appendObservation?.(managed.runId, record),
         persistAgentSessions: this.persistAgentSessions,
         inheritMainModel: this.inheritMainModel,
         parentSessionFile: managed.parentSessionFile,

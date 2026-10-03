@@ -121,6 +121,8 @@ function normalizeSettings(value) {
         raw.progressPanelMaxAgents >= 1) {
         settings.progressPanelMaxAgents = Math.min(1000, Math.floor(raw.progressPanelMaxAgents));
     }
+    if (typeof raw.recordAgentRequests === "boolean")
+        settings.recordAgentRequests = raw.recordAgentRequests;
     if (typeof raw.persistAgentSessions === "boolean") {
         settings.persistAgentSessions = raw.persistAgentSessions;
     }

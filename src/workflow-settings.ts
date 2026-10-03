@@ -38,9 +38,11 @@ export interface WorkflowSettings {
    * Persist each workflow subagent transcript as a real pi session file under
    * the standard sessions directory (~/.pi/agent/sessions/<encoded-cwd>/),
    * keyed by the project cwd. Default false: subagent sessions stay in-memory
-   * and only the compacted history embedded in the run JSON survives.
+   * while compact history and default request metadata survive in run storage.
    */
   persistAgentSessions?: boolean;
+  /** Metadata-only SDK request observations, default true. */
+  recordAgentRequests?: boolean;
   /**
    * Route UNTAGGED agent() calls (no `model`, no `tier`) to the orchestrating
    * session's main model instead of the implicit medium tier (when
@@ -214,6 +216,7 @@ function normalizeSettings(value: unknown): WorkflowSettings {
   ) {
     settings.progressPanelMaxAgents = Math.min(1000, Math.floor(raw.progressPanelMaxAgents));
   }
+  if (typeof raw.recordAgentRequests === "boolean") settings.recordAgentRequests = raw.recordAgentRequests;
   if (typeof raw.persistAgentSessions === "boolean") {
     settings.persistAgentSessions = raw.persistAgentSessions;
   }

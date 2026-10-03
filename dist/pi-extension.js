@@ -92,6 +92,7 @@ function buildManagerOptions(cwd, storage) {
         defaultTokenBudget: settings.defaultTokenBudget ?? null,
         concurrency: settings.defaultConcurrency,
         defaultAgentRetries: settings.defaultAgentRetries,
+        recordAgentRequests: settings.recordAgentRequests,
         persistAgentSessions: settings.persistAgentSessions,
         inheritMainModel: settings.inheritMainModel,
     };

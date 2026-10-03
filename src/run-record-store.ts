@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { aggregateAgentUsage } from "./display.js";
 import { type PersistenceFsLayer, readJsonWithBackupRecovery, writeJsonAtomicWithBackup } from "./fs-persistence.js";
+import type { WorkflowRequestEvidence } from "./request-recording.js";
 import { INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents } from "./run-agent-settlement.js";
 import type { PersistedRunState } from "./run-persistence.js";
 
@@ -247,6 +248,15 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       cache.delete(key);
     }
   }
+  function cachedAtHead(path: string, head: Head): Cached | undefined {
+    const cached = cache.get(path);
+    return cached?.generation === head.generation &&
+      cached.bytes === head.bytes &&
+      cached.hash === head.hash &&
+      cached.stamp === logStamp(path)
+      ? cached
+      : undefined;
+  }
   function hydrate(path: string, head: Head): PersistedRunState {
     if (
       !Number.isSafeInteger(head.bytes) ||
@@ -255,13 +265,8 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
       head.sequence <= 0
     )
       throw new Error("Invalid run commit boundary");
-    const cached = cache.get(path);
-    if (
-      cached?.generation === head.generation &&
-      cached.bytes === head.bytes &&
-      cached.hash === head.hash &&
-      cached.stamp === logStamp(path)
-    ) {
+    const cached = cachedAtHead(path, head);
+    if (cached) {
       cache.delete(path);
       cache.set(path, cached);
       return cached.state;
@@ -385,7 +390,9 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
     const head = isHead(previous) ? previous : undefined;
     const prior = head ? hydrate(path, head) : undefined;
     const before = prior ? (cache.get(path)?.cells ?? cellsOf(prior)) : new Map();
-    const after = cellsOf(state);
+    // Observation writes have an independent lifetime from snapshot callbacks.
+    // A later stale snapshot must never erase the committed evidence.
+    const after = cellsOf({ ...state, requestObservations: prior?.requestObservations ?? state.requestObservations });
     const delta = deltaOf(before, after);
     const next = commit(path, head, delta, {
       keys: [...after.keys()],
@@ -408,6 +415,43 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
     const copy = (prior ?? {}) as unknown as Record<string, unknown>;
     applyDelta(copy, delta);
     remember(path, next, copy as unknown as PersistedRunState, after);
+  }
+  function appendObservation(path: string, observation: WorkflowRequestEvidence): boolean {
+    const record = readRecord(fs, path);
+    if (!record) return false;
+    if (!isHead(record)) {
+      save(path, {
+        ...record,
+        requestObservations: { ...record.requestObservations, [observation.recordId]: observation },
+      });
+      return true;
+    }
+    const cached = cachedAtHead(path, record);
+    const persisted = structuredClone(observation);
+    const delta: Delta = {
+      set: {},
+      remove: [],
+      arrays: {},
+      objects: { requestObservations: { set: { [persisted.recordId]: persisted }, remove: [] } },
+    };
+    const next = commit(path, record, delta, {
+      keys: [...new Set([...record.keys, "requestObservations"])],
+      index: record.index,
+      summary: record.summary,
+      pendingDelivery: record.pendingDelivery,
+    });
+    // Only publish the cached delta after the authoritative head commits. A
+    // warm append/save loop must not reparse all earlier observations. A cold
+    // or externally changed head still hydrates normally on the next read.
+    if (cached) {
+      applyDelta(cached.state as unknown as Record<string, unknown>, delta);
+      const old = cached.cells.get("requestObservations");
+      const cells = old instanceof Map ? old : new Map<string, string>();
+      cells.set(persisted.recordId, JSON.stringify(persisted));
+      cached.cells.set("requestObservations", cells);
+      remember(path, next, cached.state, cached.cells);
+    }
+    return true;
   }
   function updateMetadata(
     path: string,
@@ -493,6 +537,7 @@ export function createRunRecordStore(fs: PersistenceFsLayer) {
     preview,
     save,
     updateMetadata,
+    appendObservation,
     recoverInterrupted,
     forget: (path: string) => cache.delete(path),
     logPath,

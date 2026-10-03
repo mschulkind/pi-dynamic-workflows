@@ -23,6 +23,13 @@ import { type AgentHistoryEntry, compactAgentHistory } from "./agent-history.js"
 import { type AgentUsage, agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
 import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js";
 import { pinChildCacheRetention } from "./child-cache-retention.js";
+import {
+  coreRecordingActivation,
+  createRequestObserver,
+  observeRequestInvocations,
+  type RequestIdentity,
+  type RequestSink,
+} from "./request-recording.js";
 
 export type { AgentUsage } from "./agent-usage.js";
 
@@ -635,6 +642,8 @@ function usageFromSessionProgress(stats: SessionUsageStats, event: AgentSessionE
 }
 
 export interface AgentRunOptions<TSchemaDef extends TSchema | undefined = undefined> {
+  requestIdentity?: Omit<RequestIdentity, "sessionId">;
+  onRequestObservation?: RequestSink;
   /** Host workflow attribution, not an approval authority selector. */
   runId?: string;
   label?: string;
@@ -1534,6 +1543,16 @@ export class WorkflowAgent {
       lastProgressUsage = usage;
       options.onUsageProgress(usage);
     };
+    const requestObserver =
+      options.requestIdentity && options.onRequestObservation
+        ? createRequestObserver(
+            { ...options.requestIdentity, sessionId: effectiveSessionManager.getSessionId() },
+            session.model,
+            options.onRequestObservation,
+            coreRecordingActivation(this.sessionOptions.modelRuntime ?? modelRuntime),
+          )
+        : undefined;
+    let removeRequestInvocationObserver: (() => void) | undefined;
     const emitSessionProgress = (event: AgentSessionEvent) => {
       maybeEmitHistory();
       try {
@@ -1572,9 +1591,17 @@ export class WorkflowAgent {
         removeSessionListener = session.subscribe(emitSessionProgress);
       }
       removeTurnListener = session.subscribe((event) => {
+        requestObserver?.event(event);
         if (event.type === "message_end") turnMessages.push(event.message);
       });
 
+      if (requestObserver) {
+        try {
+          removeRequestInvocationObserver = observeRequestInvocations(session.agent, requestObserver);
+        } catch {
+          /* SDKs without a writable public hook retain message-only evidence */
+        }
+      }
       await session.prompt(this.buildPrompt(prompt, options as AgentRunOptions<any>, Boolean(options.schema)));
 
       if (options.signal?.aborted) throw new Error("Subagent was aborted");
@@ -1621,6 +1648,8 @@ export class WorkflowAgent {
     } finally {
       removeAbortListener?.();
       removeHistoryListener?.();
+      removeRequestInvocationObserver?.();
+      requestObserver?.close(options.signal?.aborted ?? false);
       removeTurnListener?.();
       removeSessionListener?.();
       try {

@@ -5,6 +5,7 @@ import type { AgentUsage } from "./agent.js";
 import type { AgentHistoryEntry } from "./agent-history.js";
 import { WorkflowErrorCode } from "./errors.js";
 import { type PersistenceFsLayer } from "./fs-persistence.js";
+import type { WorkflowRequestEvidence } from "./request-recording.js";
 export { agentHasNonTerminalStatus, INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents, } from "./run-agent-settlement.js";
 import type { WorkflowCheckpoint } from "./workflow.js";
 export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed" | "aborted";
@@ -54,6 +55,8 @@ export interface PersistedJournalEntry {
  */
 export declare function sanitizeAutoResumeAttempts(value: unknown): number | undefined;
 export interface PersistedRunState {
+    /** Metadata evidence, never aggregate accounting or model context. */
+    requestObservations?: Record<string, WorkflowRequestEvidence>;
     runId: string;
     workflowName: string;
     script: string;
@@ -198,6 +201,8 @@ export type PendingDeliveryMarker = {
     deliveryId?: string;
 };
 export interface RunPersistence {
+    /** Best-effort committed evidence append, independent of snapshot lifetime. */
+    appendObservation?(runId: string, observation: WorkflowRequestEvidence): boolean;
     /** Immutable, directly readable result artifact for conversation delivery. */
     exportResult?(runId: string, result: unknown): string;
     /** Read routing metadata without hydrating history; detail fields are lazy. */

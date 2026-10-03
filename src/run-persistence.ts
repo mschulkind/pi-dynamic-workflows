@@ -14,6 +14,7 @@ import {
   resolvePersistenceFs,
   unlinkIfExistsSafe,
 } from "./fs-persistence.js";
+import type { WorkflowRequestEvidence } from "./request-recording.js";
 import { settleInterruptedPersistedAgents } from "./run-agent-settlement.js";
 import { createRunRecordStore } from "./run-record-store.js";
 
@@ -79,6 +80,8 @@ export function sanitizeAutoResumeAttempts(value: unknown): number | undefined {
 }
 
 export interface PersistedRunState {
+  /** Metadata evidence, never aggregate accounting or model context. */
+  requestObservations?: Record<string, WorkflowRequestEvidence>;
   runId: string;
   workflowName: string;
   script: string;
@@ -216,6 +219,8 @@ export type PendingDeliveryMarker =
   | { kind: "text"; text: string; deliveryId?: string };
 
 export interface RunPersistence {
+  /** Best-effort committed evidence append, independent of snapshot lifetime. */
+  appendObservation?(runId: string, observation: WorkflowRequestEvidence): boolean;
   /** Immutable, directly readable result artifact for conversation delivery. */
   exportResult?(runId: string, result: unknown): string;
   /** Read routing metadata without hydrating history; detail fields are lazy. */
@@ -645,6 +650,13 @@ export function createRunPersistence(
   };
 
   return {
+    appendObservation(runId, observation) {
+      try {
+        return mutate(runId, () => records.appendObservation(primaryRunPath(runId), observation));
+      } catch {
+        return false;
+      }
+    },
     exportResult(runId, result) {
       return mutate(runId, () => {
         if (!candidateRunPaths(runId).some((path) => _existsSync(path)))

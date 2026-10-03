@@ -25,6 +25,7 @@ export type { ModelTierConfig, ModelTierConfigOptions, RankableModel } from "./m
 export { buildDefaultTierConfig, formatTierFallbackNotice, getModelTierConfigPath, getProjectModelTierConfigPath, loadModelTierConfig, resolveTierModel, saveModelTierConfig, sortedTierNames, } from "./model-tier-config.js";
 export type { ModelSource, PreSpawnModelContext, PreSpawnModelDecision, PreSpawnModelResolver, } from "./pre-spawn-model.js";
 export { getPreSpawnModelResolver, setPreSpawnModelResolver } from "./pre-spawn-model.js";
+export type { CoreRecordingActivation, RequestIdentity, RequestObservation, RequestReplay, RequestSink, WorkflowRequestEvidence, } from "./request-recording.js";
 export type { PendingDeliveryMarker, PersistedAgentState, PersistedRunState, RunPersistence, RunStatus, } from "./run-persistence.js";
 export { createRunPersistence, generateRunId } from "./run-persistence.js";
 export { parseCommandArgs, registerAllSavedWorkflows, registerSavedWorkflow, } from "./saved-commands.js";

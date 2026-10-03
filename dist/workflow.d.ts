@@ -4,6 +4,7 @@ import type { AgentHistoryEntry } from "./agent-history.js";
 import { type AgentRegistry } from "./agent-registry.js";
 import { type AgentUsage } from "./agent-usage.js";
 import { WorkflowCheckpointSuspensionError, WorkflowErrorCode } from "./errors.js";
+import { type RequestSink } from "./request-recording.js";
 import { SharedStore } from "./shared-store.js";
 export interface WorkflowMetaPhase {
     title: string;
@@ -161,6 +162,12 @@ export interface WorkflowCheckpoint extends WorkflowCheckpointInput {
     readonly consumedAt?: string;
 }
 export interface WorkflowRunOptions extends WorkflowAgentOptions {
+    /** Metadata-only request evidence is on by default; false disables it. */
+    recordAgentRequests?: boolean;
+    onRequestObservation?: RequestSink;
+    /** Internal attribution shared by nested frames. */
+    requestRootRunId?: string;
+    requestExecutionId?: string;
     args?: unknown;
     agent?: WorkflowAgentRunner;
     /** The session's main model (provider/id); the pre-resolution display guess and, with inheritMainModel on, the untagged routing target. */

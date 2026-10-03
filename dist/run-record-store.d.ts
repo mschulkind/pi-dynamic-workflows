@@ -1,5 +1,6 @@
 import { aggregateAgentUsage } from "./display.js";
 import { type PersistenceFsLayer } from "./fs-persistence.js";
+import type { WorkflowRequestEvidence } from "./request-recording.js";
 import type { PersistedRunState } from "./run-persistence.js";
 interface RunSummary {
     total: number;
@@ -34,6 +35,7 @@ export declare function createRunRecordStore(fs: PersistenceFsLayer): {
     preview: (path: string, record: PersistedRunState | Head) => PersistedRunState;
     save: (path: string, state: PersistedRunState) => void;
     updateMetadata: (path: string, patch: Partial<Pick<PersistedRunState, "sessionId" | "pendingDelivery" | "autoResumeAttempts">>, expectedDeliveryId?: string) => boolean;
+    appendObservation: (path: string, observation: WorkflowRequestEvidence) => boolean;
     recoverInterrupted: (path: string) => boolean;
     forget: (path: string) => boolean;
     logPath: (path: string) => string;
