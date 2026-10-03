@@ -1,15 +1,15 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, normalize, relative } from "node:path";
-import packageJson from "../package.json?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974" with { type: "json" };
-import { CapabilityClassification, CapabilitySupport, DiscoveryPlacement, WorkflowAuthoringProtection, WorkflowReleaseDiagnosticCode, } from "./enums.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { WORKFLOW_AUTHORING_COVERAGE, WORKFLOW_AUTHORING_FROZEN_FILES, WORKFLOW_AUTHORING_PATTERN_IDS, WORKFLOW_AUTHORING_RECIPE_IDS, WORKFLOW_COMPREHENSION_SCENARIO_IDS, } from "./workflow-authoring-coverage.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { checkWorkflowCapabilityPublications, } from "./workflow-authoring-reference.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { WORKFLOW_CAPABILITY_DEFINITION } from "./workflow-capability-contract.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { checkWorkflowContextMeasurement, WORKFLOW_CONTEXT_MEASUREMENT_PATH } from "./workflow-context-measurement.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { createWorkflowTool } from "./workflow-tool.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+import packageJson from "../package.json?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9" with { type: "json" };
+import { CapabilityClassification, CapabilitySupport, DiscoveryPlacement, WorkflowAuthoringProtection, WorkflowReleaseDiagnosticCode, } from "./enums.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { WORKFLOW_AUTHORING_COVERAGE, WORKFLOW_AUTHORING_FROZEN_FILES, WORKFLOW_AUTHORING_PATTERN_IDS, WORKFLOW_AUTHORING_RECIPE_IDS, WORKFLOW_COMPREHENSION_SCENARIO_IDS, } from "./workflow-authoring-coverage.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { checkWorkflowCapabilityPublications, } from "./workflow-authoring-reference.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { WORKFLOW_CAPABILITY_DEFINITION } from "./workflow-capability-contract.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { checkWorkflowContextMeasurement, WORKFLOW_CONTEXT_MEASUREMENT_PATH } from "./workflow-context-measurement.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { createWorkflowTool } from "./workflow-tool.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 /** Re-exported stable diagnostic codes for release automation. */
-export { WorkflowReleaseDiagnosticCode } from "./enums.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+export { WorkflowReleaseDiagnosticCode } from "./enums.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 const SKILL_ROOT = "skills/workflow-authoring";
 /** Package-relative generated hash baseline for compact and detailed guidance. */
 export const WORKFLOW_GUIDANCE_BASELINE_PATH = "docs/workflow-guidance-baseline.json";

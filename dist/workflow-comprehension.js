@@ -1,10 +1,10 @@
 import { setImmediate as pause } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
-import { ComprehensionSuite, ComprehensionTaskKind } from "./enums.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { ModelGenerationError, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { parseWorkflowScript, runWorkflow } from "./workflow.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+import { ComprehensionSuite, ComprehensionTaskKind } from "./enums.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { ModelGenerationError, WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { parseWorkflowScript, runWorkflow } from "./workflow.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 /** Re-exported scenario groups and authoring operations used by the optional comprehension CLI. */
-export { ComprehensionSuite, ComprehensionTaskKind } from "./enums.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+export { ComprehensionSuite, ComprehensionTaskKind } from "./enums.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 const ENVELOPE = "Return one complete plain-JavaScript workflow. It must start with export const meta, call agent() at least once, use unique labels, and explicitly return JSON-serializable data. Do not use imports.";
 /** Stable quick, core, and coverage scenarios available to provider and replay runs. */
 export const COMPREHENSION_SCENARIOS = [
@@ -70,7 +70,7 @@ export const COMPREHENSION_SCENARIOS = [
     },
 ];
 /** Re-exported generation failure that retains loading and usage evidence. */
-export { ModelGenerationError } from "./errors.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+export { ModelGenerationError } from "./errors.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 const ordinaryAgentFixture = ({ prompt, label, schema }) => ({
     status: "returned",
     result: schema ? sampleSchema(schema, label || "agent") : `result:${label || prompt}`,

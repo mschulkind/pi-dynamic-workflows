@@ -1,15 +1,15 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { toPiUsage } from "./agent-usage.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { BUILTIN_WORKFLOW_NAMES, resolveWorkflowInvocation } from "./builtin-workflows.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { MAX_AGENTS_PER_RUN } from "./config.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { createToolUpdateWorkflowDisplay, createWorkflowSnapshot, fmtCost, fmtFull, fmtTokenSegment, recomputeWorkflowSnapshot, renderWorkflowText, tokenFigures, } from "./display.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { parseWorkflowScript } from "./workflow.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { WorkflowManager } from "./workflow-manager.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { createWorkflowStorage } from "./workflow-saved.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
-import { loadWorkflowSettings } from "./workflow-settings.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+import { toPiUsage } from "./agent-usage.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { BUILTIN_WORKFLOW_NAMES, resolveWorkflowInvocation } from "./builtin-workflows.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { MAX_AGENTS_PER_RUN } from "./config.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { createToolUpdateWorkflowDisplay, createWorkflowSnapshot, fmtCost, fmtFull, fmtTokenSegment, recomputeWorkflowSnapshot, renderWorkflowText, tokenFigures, } from "./display.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { WorkflowError, WorkflowErrorCode } from "./errors.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { parseWorkflowScript } from "./workflow.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { WorkflowManager } from "./workflow-manager.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { createWorkflowStorage } from "./workflow-saved.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
+import { loadWorkflowSettings } from "./workflow-settings.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 /** The single always-on gate that authorizes workflow use without forcing it. */
 export const WORKFLOW_GATE_GUIDELINE = "The `workflow` tool runs multi-agent orchestration — it fans decomposable work out across subagents, and fits tasks shaped like: repo-wide inspection, independent parallel research/checks, multi-perspective review, or fan-out/fan-in synthesis. ONLY call it when the user explicitly opts in — via the workflow trigger word, `/workflows run`, or their own words (e.g. 'run a workflow', 'fan this out', '并行审一遍'). For any other task — even one that would clearly benefit — do not call it; you may briefly offer it (with a rough cost) as an option instead.";
 const workflowToolSchema = Type.Object({

@@ -50,3 +50,10 @@ When middleware is configured, or a child is guarded by
 
 Pi caches an extension module's factory per process, and workflow children do not reset that cache. Two children call
 the same factory, but share the module's top-level state. Keep per-session state inside the factory.
+
+## Testing against the installed Pi
+
+`node_modules` pins one `@earendil-works/pi-coding-agent` version, but the Pi that loads this package is the installed
+one. `npm run test:deployed-pi` builds, then runs the optional-child-extension, child-approval, and middleware-isolation
+tests with every `@earendil-works/*` import resolved to the installed Pi (`$(npm root -g)/@earendil-works/pi-coding-agent`,
+or the package directory in `PI_CODING_AGENT_PACKAGE`). The resolver is `tests/helpers/deployed-pi-loader.mjs`.

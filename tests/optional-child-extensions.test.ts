@@ -4,8 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
-import { type DefaultResourceLoader, ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  type DefaultResourceLoader,
+  ModelRegistry,
+  ModelRuntime,
+  type ResourceLoader,
+  SessionManager,
+  type ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { WorkflowAgent } from "../src/agent.js";
+import { ChildApprovalScope } from "../src/child-approval.js";
 import {
   isolateOptionalExtensionHandlers,
   OPTIONAL_CHILD_EXTENSIONS_KEY,
@@ -142,6 +151,14 @@ async function withFixture(fn: (fixture: Fixture) => Promise<void>): Promise<voi
 function register(entries: Record<string, OptionalChildExtensionEntry | unknown>): void {
   (globalThis as Root)[OPTIONAL_CHILD_EXTENSIONS_KEY] = new Map(Object.entries(entries));
 }
+
+test("runs against the pi it was asked to (npm run test:deployed-pi)", {
+  skip: !process.env.PI_DEPLOYED_PI_VERSION,
+}, () => {
+  // tests/helpers/deployed-pi-loader.mjs redirects @earendil-works/* to an installed pi.
+  const resolved = import.meta.resolve("@earendil-works/pi-coding-agent");
+  assert.equal(resolved.startsWith(new URL("../node_modules/", import.meta.url).href), false, resolved);
+});
 
 test("the registry key and host name are the shared convention", () => {
   assert.equal(OPTIONAL_CHILD_EXTENSIONS_KEY, Symbol.for("pi.optional-child-extensions.v1"));
@@ -536,6 +553,8 @@ test("a late-registered throwing tool_call cannot block a workflow child's tool,
     assert.equal(toolResult.isError, false, "a late throwing tool_call observer did not block the tool");
     assert.match(warnings.join("\n"), /failed in tool_call: late tool_call exploded \(ignored\)/);
     const events = log.events.map(({ event }) => event);
+    // pi >= 1.0 (the deployed one; see test:deployed-pi) returns an unsubscribe.
+    if (process.env.PI_DEPLOYED_PI_VERSION) assert.equal(events.includes("no off()"), false);
     if (!events.includes("no off()")) {
       assert.equal(events.includes("unsubscribed message_end"), false, "off() removed the handler");
     }
@@ -581,5 +600,108 @@ test("an optional extension's resources_discover never writes into the shared lo
       1,
       "dropped with a one-time warning",
     );
+  });
+});
+
+const APPROVAL_SLOT = Symbol.for("@mschulkind/pi-child-approval");
+
+/** A real ChildApprovalScope whose attachments are recorded, so a test can inspect the loader a guarded child got. */
+class RecordingApprovalScope extends ChildApprovalScope {
+  readonly attached: ResourceLoader[] = [];
+  override open(...args: Parameters<ChildApprovalScope["open"]>): ReturnType<ChildApprovalScope["open"]> {
+    const attachment = super.open(...args);
+    if (!attachment) return attachment;
+    return {
+      close: () => attachment.close(),
+      attach: (loader, sessionManager) => {
+        const result = attachment.attach(loader, sessionManager);
+        this.attached.push(result.loader);
+        return result;
+      },
+    };
+  }
+}
+
+test("a guarded child loads observers after the middleware, keeps approval last, and a throwing observer cannot bypass it", async () => {
+  await withFixture(async ({ home, cwd, agentDir, observer, log, core }) => {
+    const middleware = join(agentDir, "extensions", "allowed-adapter.js");
+    writeFileSync(middleware, "export default function (pi) { pi.on('tool_call', () => undefined); }\n");
+    const throwing = join(home, "throwing.mjs");
+    writeFileSync(throwing, throwingSource);
+    register({ observer: { path: observer }, throwing: { path: throwing } });
+
+    const root = SessionManager.inMemory(home);
+    const decisions: string[] = [];
+    const saved = (globalThis as Root)[APPROVAL_SLOT];
+    (globalThis as Root)[APPROVAL_SLOT] = {
+      version: 1,
+      lookupRoot: (owner?: object) => ({ status: owner === root ? "available" : "unavailable" }),
+      openChildGuard: () => ({
+        evaluate: async (request: { input: { value?: string } }) => {
+          decisions.push(request.input.value ?? "");
+          return request.input.value === "deny"
+            ? { decision: "block", reason: "denied by test" }
+            : { decision: "allow" };
+        },
+        close: () => {},
+      }),
+    };
+    try {
+      const executions: string[] = [];
+      const tool: ToolDefinition = {
+        name: "generic",
+        label: "generic",
+        description: "Execution spy",
+        parameters: Type.Object({ value: Type.Optional(Type.String()) }),
+        execute: async (_id, input) => {
+          executions.push(input.value ?? "generic");
+          return { content: [{ type: "text", text: "executed" }], details: undefined };
+        },
+      };
+      const scope = new RecordingApprovalScope(root);
+      const agent = new WorkflowAgent({
+        cwd,
+        tools: [tool],
+        modelRegistry: await fauxRegistry(home, core),
+        providerMiddlewareExtensions: ["allowed-adapter"],
+        childApprovalScope: scope,
+      });
+      const sessions: string[] = [];
+      for (const value of ["deny", "allow"]) {
+        core.setResponses([
+          fauxAssistantMessage(fauxToolCall("generic", { value }), { stopReason: "toolUse" }),
+          fauxAssistantMessage("done", { stopReason: "stop" }),
+        ]);
+        assert.equal(
+          await agent.run(value, { model: MODEL, onSessionCreated: ({ sessionId }) => sessions.push(sessionId) }),
+          "done",
+        );
+      }
+
+      // (b)+(c): approval decided both calls; the denied one never ran, despite the throwing observer.
+      assert.deepEqual(decisions, ["deny", "allow"]);
+      assert.deepEqual(executions, ["allow"]);
+
+      // (a): middleware, then observers, then the approval gate, in every guarded child.
+      assert.equal(scope.attached.length, 2);
+      for (const loader of scope.attached) {
+        const extensions = loader.getExtensions().extensions;
+        assert.deepEqual(
+          extensions.map(({ path }) => path),
+          [middleware, observer, throwing, "workflow:child-approval"],
+        );
+        const withToolCall = extensions.filter(({ handlers }) => (handlers.get("tool_call")?.length ?? 0) > 0);
+        assert.equal(withToolCall.at(-1)?.path, "workflow:child-approval", "approval is the last tool_call handler");
+      }
+      for (const sessionId of sessions) {
+        const own = log.events.filter((entry) => entry.sessionId === sessionId).map(({ event }) => event);
+        assert.equal(own[0], "session_start", "the observer sees the guarded child's session_start");
+        assert.ok(own.includes("message_end"));
+      }
+      assert.equal(log.loads, 2);
+    } finally {
+      if (saved === undefined) delete (globalThis as Root)[APPROVAL_SLOT];
+      else (globalThis as Root)[APPROVAL_SLOT] = saved;
+    }
   });
 });

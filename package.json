@@ -25,6 +25,7 @@
   "scripts": {
     "test": "npm run check && npm run release:check",
     "test:unit": "tsx --test tests/**/*.test.ts",
+    "test:deployed-pi": "npm run build && tsx --import ./tests/helpers/deployed-pi-loader.mjs --test tests/optional-child-extensions.test.ts tests/child-approval.test.ts tests/child-approval-production.test.ts tests/middleware-isolation.test.ts",
     "release:check": "npm run build && npm run docs:check && npm run context:check && npm run test:unit && npm run release:verify",
     "release:verify": "tsx scripts/check-workflow-release.ts",
     "check": "biome check . && npm run check:scripts",

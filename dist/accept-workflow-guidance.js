@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { WORKFLOW_AUTHORING_FROZEN_FILES } from "./workflow-authoring-coverage.js?workflowBuild=sha256:29c2c2a9bf931d4bdf4c3f8cd30bda919963490b5665ee3959f68c834c37f974";
+import { WORKFLOW_AUTHORING_FROZEN_FILES } from "./workflow-authoring-coverage.js?workflowBuild=sha256:5b53f69c3e39790b2c4180516289c249352d5ba94f8d2878e1a26cc67ab1dbb9";
 const COVERAGE_MANIFEST_PATH = "src/workflow-authoring-coverage.ts";
 function sha256(source) {
     return createHash("sha256").update(source).digest("hex");
