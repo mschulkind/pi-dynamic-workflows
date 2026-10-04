@@ -1,10 +1,10 @@
-import packageJson from "../package.json?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3" with { type: "json" };
-import { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { WorkflowCapabilityContractError } from "./errors.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import packageJson from "../package.json?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f" with { type: "json" };
+import { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { WorkflowCapabilityContractError } from "./errors.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 /** Re-exported capability domains used by contract consumers. */
-export { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+export { CapabilityClassification, CapabilityOrigin, CapabilitySupport, DiagnosticSeverity, DiscoveryPlacement, } from "./enums.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 /** Re-exported contract failure type retained for existing consumers. */
-export { WorkflowCapabilityContractError } from "./errors.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+export { WorkflowCapabilityContractError } from "./errors.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 const REFERENCE_PATH = "skills/workflow-authoring/references/capability-details.md";
 const PRESENT_AT = { kind: "present-at", version: packageJson.version };
 const noOptions = [];

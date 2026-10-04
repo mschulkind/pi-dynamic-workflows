@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CapabilityClassification, CapabilitySupport, WORKFLOW_CAPABILITY_CONTRACT, } from "./workflow-capability-contract.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { CapabilityClassification, CapabilitySupport, WORKFLOW_CAPABILITY_CONTRACT, } from "./workflow-capability-contract.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 const GENERATED_MARKER = "<!-- GENERATED from WORKFLOW_CAPABILITY_CONTRACT; do not edit by hand. -->";
 const TABLE_START = "<!-- BEGIN GENERATED SUPPORTED WORKFLOW CAPABILITIES -->";
 const TABLE_END = "<!-- END GENERATED SUPPORTED WORKFLOW CAPABILITIES -->";

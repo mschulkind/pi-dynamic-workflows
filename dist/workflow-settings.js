@@ -6,8 +6,8 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { MAX_AGENT_RETRIES, MAX_CONCURRENCY, normalizeKeywordTriggerWord, WORKFLOW_SETTINGS_FILE } from "./config.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { workflowHomeDir, workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { MAX_AGENT_RETRIES, MAX_CONCURRENCY, normalizeKeywordTriggerWord, WORKFLOW_SETTINGS_FILE } from "./config.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { workflowHomeDir, workflowProjectPaths } from "./workflow-paths.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 /** Path to the user-level workflow settings JSON file (~/.pi/workflows/settings.json). */
 export function getWorkflowSettingsPath() {
     return join(workflowHomeDir(), "settings.json");

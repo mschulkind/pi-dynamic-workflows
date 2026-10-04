@@ -3,9 +3,9 @@
  * command that runs its script, passing parsed arguments through as `args`.
  */
 import { createCodingTools } from "@earendil-works/pi-coding-agent";
-import { claimCommand, commandOwner, isCommandRegistered } from "./command-registry.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { backgroundStartNotice } from "./display.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { runWorkflow } from "./workflow.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { claimCommand, commandOwner, isCommandRegistered } from "./command-registry.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { backgroundStartNotice } from "./display.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { runWorkflow } from "./workflow.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 function savedCommandOwnedByExtension(pi, name) {
     const owner = commandOwner(pi, name);
     return owner === "builtin" || owner === "saved";

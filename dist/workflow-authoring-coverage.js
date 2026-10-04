@@ -1,6 +1,6 @@
-import { CapabilityClassification, CapabilitySupport, DiscoveryPlacement, WorkflowAuthoringProtection, } from "./enums.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { WORKFLOW_CAPABILITY_DEFINITION } from "./workflow-capability-contract.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { COMPREHENSION_SCENARIOS } from "./workflow-comprehension.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { CapabilityClassification, CapabilitySupport, DiscoveryPlacement, WorkflowAuthoringProtection, } from "./enums.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { WORKFLOW_CAPABILITY_DEFINITION } from "./workflow-capability-contract.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { COMPREHENSION_SCENARIOS } from "./workflow-comprehension.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 /** Scenario identifiers that release checks may accept as provider-backed evidence. */
 export const WORKFLOW_COMPREHENSION_SCENARIO_IDS = COMPREHENSION_SCENARIOS.map(({ id }) => id);
 /** Mixed guidance files that require explicit acceptance while behavioral coverage remains partial. */

@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
-import { WORKFLOW_RUNS_DIR, WORKFLOW_SAVED_DIR } from "./config.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { WORKFLOW_RUNS_DIR, WORKFLOW_SAVED_DIR } from "./config.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 export const WORKFLOW_HOME_RELATIVE_DIR = ".pi/workflows";
 export const WORKFLOW_PROJECTS_SUBDIR = "projects";
 export function workflowHomeDir() {

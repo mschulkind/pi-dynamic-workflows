@@ -1,9 +1,9 @@
 /** Versioned run records: append changed cells, then atomically commit a small index head. */
 import { createHash, randomUUID } from "node:crypto";
-import { aggregateAgentUsage } from "./display.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { readJsonWithBackupRecovery, writeJsonAtomicWithBackup } from "./fs-persistence.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { workflowPerformance } from "./workflow-performance.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { aggregateAgentUsage } from "./display.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { readJsonWithBackupRecovery, writeJsonAtomicWithBackup } from "./fs-persistence.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { INTERRUPTED_AGENT_CAUSE, settleInterruptedPersistedAgents } from "./run-agent-settlement.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { workflowPerformance } from "./workflow-performance.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 const summaries = new WeakMap();
 const previewSources = new WeakMap();
 /** Stable private revision identity; caller-visible fields are never cache keys. */

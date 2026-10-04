@@ -10,12 +10,12 @@
  * whole session until the workflow finished (#104).
  */
 import { spawn } from "node:child_process";
-import { findBuiltinWorkflow } from "./builtin-workflows.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { MAX_DIFF_CHARS } from "./code-review.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { claimCommand, isCommandRegistered } from "./command-registry.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { backgroundStartNotice } from "./display.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { parseCommandArgs } from "./saved-commands.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { createWorkflowStorage } from "./workflow-saved.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { findBuiltinWorkflow } from "./builtin-workflows.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { MAX_DIFF_CHARS } from "./code-review.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { claimCommand, isCommandRegistered } from "./command-registry.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { backgroundStartNotice } from "./display.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { parseCommandArgs } from "./saved-commands.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { createWorkflowStorage } from "./workflow-saved.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 const COMMAND_ERROR_MAX_CHARS = 32_000;
 const AUTO_SCOPE_METADATA_MAX_CHARS = 2_000_000;
 const AUTO_SCOPE_MAX_PATHS = 4_096;

@@ -468,6 +468,19 @@ export declare class WorkflowAgent {
      */
     private getSharedResourceLoader;
     /**
+     * The resource loader one child session uses: the shared loader, plus the
+     * optional child extensions from the cross-package registry (see
+     * optional-child-extensions.ts). Those observers load regardless of the
+     * middleware allowlist and fail open.
+     *
+     * A shared loader stays shared: the observers load per child into an overlay
+     * with its own extension runtime (withOptionalChildExtensions), so the #109
+     * sharing survives them. A session-local loader (middleware opt-in, or a
+     * guarded child) already loads per child, so the observers are added to it
+     * directly in buildSharedResourceLoader.
+     */
+    private getChildResourceLoader;
+    /**
      * Bound the loader memo (audit2 #41): worktree isolation gives every agent
      * a unique cwd, so N worktree agents would otherwise retain N
      * fully-reloaded loaders until run end. LRU-by-touch (hits re-insert in

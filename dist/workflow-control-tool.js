@@ -1,7 +1,7 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { aggregateAgentUsage, tokenFigures } from "./display.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { runSummary } from "./run-record-store.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { aggregateAgentUsage, tokenFigures } from "./display.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { runSummary } from "./run-record-store.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 // A tool's top-level parameter schema must be a JSON Schema object (`type:
 // "object"`). A discriminated Type.Union of two objects serializes to a
 // top-level `anyOf` with no `type`, which strict providers (e.g. DeepSeek)

@@ -14,10 +14,10 @@
  */
 import { getLanguageFromPath, getMarkdownTheme, renderDiff, } from "@earendil-works/pi-coding-agent";
 import { Markdown, parseKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { runDetail, runDetailIsCurrent, runPreviewIdentity, runSummary, } from "./run-record-store.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
-import { isSafeSavedWorkflowName, savedWorkflowRevision, } from "./workflow-saved.js?workflowBuild=sha256:d3209ceea3e2416915c692f9cfe5b087f9ce10d246efd50a9346ffc9c4653eb3";
+import { aggregateAgentUsage, fmtCost, fmtTokenSegment, tokenFigures } from "./display.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { runDetail, runDetailIsCurrent, runPreviewIdentity, runSummary, } from "./run-record-store.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { registerSavedWorkflow, savedWorkflowCommandAvailability } from "./saved-commands.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
+import { isSafeSavedWorkflowName, savedWorkflowRevision, } from "./workflow-saved.js?workflowBuild=sha256:a69b5e91659669855309b6c77731dbf09ab85d2f958ebca01e47c86fd6a2615f";
 const STATUS_ICON = {
     pending: "·",
     queued: "·",

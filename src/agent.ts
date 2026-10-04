@@ -13,6 +13,7 @@ import {
   type LoadExtensionsResult,
   ModelRegistry,
   type ModelRuntime,
+  type ResourceLoader,
   SessionManager,
   SettingsManager,
   type ToolDefinition,
@@ -23,6 +24,16 @@ import { type AgentHistoryEntry, compactAgentHistory } from "./agent-history.js"
 import { type AgentUsage, agentUsageEquals, createEmptyAgentUsage, sumAgentUsage } from "./agent-usage.js";
 import { ChildApprovalScope, noteChildRuntime } from "./child-approval.js";
 import { pinChildCacheRetention } from "./child-cache-retention.js";
+import {
+  type OptionalChildExtensionResolution,
+  optionalPathSet,
+  PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST,
+  partitionOptionalExtensions,
+  reportOptionalLoadErrors,
+  resolveOptionalChildExtensions,
+  warnOptionalChildExtension,
+  withOptionalChildExtensions,
+} from "./optional-child-extensions.js";
 import {
   coreRecordingActivation,
   createRequestObserver,
@@ -810,6 +821,18 @@ export function subagentExcludedTools(extra?: string[], sessionExclude?: string[
   return [...DEFAULT_EXCLUDED_SUBAGENT_TOOLS, ...(sessionExclude ?? []), ...(extra ?? [])];
 }
 
+/** Optional observers never fail a child. The resolver is total; this guards the call sites too. */
+function resolveOptionalChildExtensionsOrNothing(
+  loadedPaths: readonly string[],
+  cwd: string,
+): OptionalChildExtensionResolution {
+  try {
+    return resolveOptionalChildExtensions(PI_DYNAMIC_WORKFLOWS_OPTIONAL_HOST, loadedPaths, cwd);
+  } catch {
+    return { extensions: [], diagnostics: ["optional child extensions skipped: the registry could not be read"] };
+  }
+}
+
 export class WorkflowAgent {
   private readonly cwd: string;
   private readonly baseTools: ToolDefinition[];
@@ -970,6 +993,27 @@ export class WorkflowAgent {
   }
 
   /**
+   * The resource loader one child session uses: the shared loader, plus the
+   * optional child extensions from the cross-package registry (see
+   * optional-child-extensions.ts). Those observers load regardless of the
+   * middleware allowlist and fail open.
+   *
+   * A shared loader stays shared: the observers load per child into an overlay
+   * with its own extension runtime (withOptionalChildExtensions), so the #109
+   * sharing survives them. A session-local loader (middleware opt-in, or a
+   * guarded child) already loads per child, so the observers are added to it
+   * directly in buildSharedResourceLoader.
+   */
+  private async getChildResourceLoader(agentDir: string, cwd: string, guarded: boolean): Promise<ResourceLoader> {
+    const loader = await this.getSharedResourceLoader(agentDir, cwd, guarded);
+    const shared = !guarded && this.providerMiddlewareExtensions.length === 0;
+    if (!shared) return loader;
+    const optional = resolveOptionalChildExtensionsOrNothing([], cwd);
+    for (const diagnostic of optional.diagnostics) warnOptionalChildExtension(diagnostic);
+    return withOptionalChildExtensions(loader, optional.extensions, { cwd, agentDir });
+  }
+
+  /**
    * Bound the loader memo (audit2 #41): worktree isolation gives every agent
    * a unique cwd, so N worktree agents would otherwise retain N
    * fully-reloaded loaders until run end. LRU-by-touch (hits re-insert in
@@ -1010,16 +1054,28 @@ export class WorkflowAgent {
           })
           .map((extension) => extension.path);
       }
+      // A session-local loader carries the child's optional observers itself;
+      // a shared one never does (getChildResourceLoader overlays them per child).
+      const optional = shared
+        ? { extensions: [], diagnostics: [] }
+        : resolveOptionalChildExtensionsOrNothing(middlewarePaths, cwd);
+      for (const diagnostic of optional.diagnostics) warnOptionalChildExtension(diagnostic);
+      const optionalPaths = optionalPathSet(optional.extensions);
       const loader = new DefaultResourceLoader({
         cwd,
         agentDir,
         settingsManager,
         noExtensions: true,
-        additionalExtensionPaths: middlewarePaths,
-        extensionsOverride: (base) =>
-          filterProviderMiddlewareExtensions(base, this.providerMiddlewareExtensions, packageSources),
+        additionalExtensionPaths: [...middlewarePaths, ...optional.extensions.map(({ path }) => path)],
+        extensionsOverride: (base) => {
+          // Observers bypass the middleware allowlist and load after it.
+          const { rest, optional: observers } = partitionOptionalExtensions(base, optionalPaths);
+          const filtered = filterProviderMiddlewareExtensions(rest, this.providerMiddlewareExtensions, packageSources);
+          return { ...filtered, extensions: [...filtered.extensions, ...observers] };
+        },
       });
       await loader.reload();
+      reportOptionalLoadErrors(loader.getExtensions(), optionalPaths);
       return loader;
     })().catch((err) => {
       // Don't let a transient build failure (e.g. EMFILE during reload's disk
@@ -1410,7 +1466,7 @@ export class WorkflowAgent {
     let session: Awaited<ReturnType<typeof createAgentSession>>["session"];
     try {
       const selectedLoader =
-        this.sessionOptions.resourceLoader ?? (await this.getSharedResourceLoader(agentDir, runCwd, !!approval));
+        this.sessionOptions.resourceLoader ?? (await this.getChildResourceLoader(agentDir, runCwd, !!approval));
       attached = approval?.attach(selectedLoader, effectiveSessionManager);
       if (!approval) noteChildRuntime(selectedLoader);
       ({ session } = await createAgentSession({
